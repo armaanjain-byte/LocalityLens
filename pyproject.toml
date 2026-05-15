@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "localitylens"
+version = "0.1.0"
+description = "AST-aware observability tool for coding-agent workflows"
+requires-python = ">=3.11"
+
+dependencies = [
+    "typer",
+    "pydantic",
+    "networkx",
+    "tree-sitter",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "ruff",
+    "mypy",
+]
+
+[project.scripts]
+localitylens = "localitylens.cli.main:app"
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
