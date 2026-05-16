@@ -1,63 +1,85 @@
-"""Thrashing analysis: detects repeated re-visiting of the same files."""
-
-from __future__ import annotations
-
 from collections import Counter
 
-from localitylens.config.settings import settings
-from localitylens.core.metrics import AnalysisReport, MetricResult, Severity
-from localitylens.core.semantic_map import SemanticMap
+from localitylens.core.metrics import (
+    AnalysisReport,
+    MetricResult,
+    Severity,
+)
+from localitylens.core.trace import Trace
 
 
 class ThrashingAnalyzer:
-    """Detect semantic thrashing in a trace.
+    """
+    Detect oscillating context-switch loops.
 
-    Thrashing occurs when the agent revisits the same files more than
-    :attr:`~localitylens.config.settings.ThresholdSettings.thrash_repeat_limit`
-    times without meaningful progress, suggesting it is stuck in a loop.
+    Example:
+        A → B → A → B
+
+    This is much closer to real cognitive thrashing than
+    simple repeated file access counts.
     """
 
-    def analyze(self, smap: SemanticMap, report: AnalysisReport) -> None:
-        """Append thrashing metrics to *report*.
+    def analyze(self, trace: Trace, report: AnalysisReport) -> None:
+        files = [
+    e.target
+    for e in trace.events
+    if (
+        e.kind.value in ("file_read", "file_write")
+        and e.target not in (
+            "session",
+            "unknown_file",
+            "search_operation",
+        )
+    )
+]
 
-        Args:
-            smap: Semantic map built from the trace.
-            report: Report to append metrics to (mutated in place).
-        """
-        counts: Counter[str] = Counter(smap.touch_sequence())
-        limit = settings.thresholds.thrash_repeat_limit
+        oscillations = []
 
-        thrashing_files = {path: n for path, n in counts.items() if n >= limit}
-        thrash_count = len(thrashing_files)
-        total_files = len(counts)
+        for i in range(len(files) - 3):
+            a, b, c, d = files[i:i + 4]
 
-        ratio = thrash_count / total_files if total_files else 0.0
-        severity = self._classify(ratio, thrash_count)
+            if a == c and b == d and a != b:
+                oscillations.append((a, b))
 
-        top = sorted(thrashing_files.items(), key=lambda x: -x[1])[:5]
-        top_str = ", ".join(f"{p}({n})" for p, n in top)
+        pair_counts = Counter(oscillations)
+
+        total = len(oscillations)
+
+        severity = self._classify(total)
+
+        top_pairs = ", ".join(
+            f"{a}<->{b}({count})"
+            for (a, b), count in pair_counts.most_common(5)
+        )
 
         report.metrics.append(
             MetricResult(
-                name="thrash_file_count",
-                value=float(thrash_count),
+                name="oscillation_thrashing",
+                value=float(total),
                 severity=severity,
                 details=(
-                    f"{thrash_count}/{total_files} files revisited ≥{limit}x. "
-                    + (f"Top: {top_str}" if top_str else "None.")
+                    f"{total} oscillation loops detected. "
+                    f"Top pairs: {top_pairs or 'None'}"
                 ),
-                extra={"thrashing_files": thrashing_files},
+                extra={
+                    "oscillations": total,
+                    "top_pairs": {
+                       f"{a}<->{b}": count
+                       for (a, b), count in pair_counts.items()
+                    },
+                },
             )
         )
 
     @staticmethod
-    def _classify(ratio: float, count: int) -> Severity:
-        if count == 0:
+    def _classify(total: int) -> Severity:
+        if total <= 5:
             return Severity.OK
-        if ratio < 0.1:
+        if total <= 20:
             return Severity.LOW
-        if ratio < 0.25:
+        if total <= 50:
             return Severity.MEDIUM
-        if ratio < 0.5:
+        if total <= 100:
             return Severity.HIGH
+
         return Severity.CRITICAL

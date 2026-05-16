@@ -4,8 +4,11 @@ from pathlib import Path
 from typing import List
 
 import typer
+from localitylens.analysis.anomaly import AnomalyAnalyzer
+from localitylens.visualization.replay_export import ReplayExporter
 from rich.console import Console
-
+from localitylens.analysis.semantic_continuity import SemanticContinuityAnalyzer
+from localitylens.analysis.transition_graph import TransitionGraphAnalyzer
 from localitylens.analysis.churn import ChurnAnalyzer
 from localitylens.analysis.locality import LocalityAnalyzer
 from localitylens.analysis.thrashing import ThrashingAnalyzer
@@ -19,7 +22,11 @@ from localitylens.storage.db import ReportStore
 from localitylens.utils.logger import get_logger
 from localitylens.utils.validators import validate_file_exists
 from localitylens.visualization.charts import TextReportVisualizer
-
+from localitylens.analysis.context_entropy import ContextEntropyAnalyzer
+from localitylens.analysis.dependency_radius import DependencyRadiusAnalyzer
+from localitylens.visualization.transition_graph import (
+    TransitionGraphVisualizer,
+)
 app = typer.Typer()
 log = get_logger(__name__)
 console = Console()
@@ -27,8 +34,13 @@ console = Console()
 # Initialise components
 PARSERS = [ClaudeCodeParser(), GenericJsonParser()]
 ANALYZERS = [
+    AnomalyAnalyzer(),
+    SemanticContinuityAnalyzer(),
+    DependencyRadiusAnalyzer(),
+    ContextEntropyAnalyzer(),
+    TransitionGraphAnalyzer(),
     ChurnAnalyzer(),
-    LocalityAnalyzer(),
+    
     ThrashingAnalyzer(),
     WasteAnalyzer(),
 ]
@@ -77,6 +89,19 @@ def analyze_file(
         # 6. Visualization
         visualizer = TextReportVisualizer()
         console.print(visualizer.render(report))
+        graph = TransitionGraphVisualizer()
+
+        path = graph.render(trace)
+        replay = ReplayExporter()
+
+        replay_path = replay.export(trace)
+
+        console.print(
+    f"[bold cyan]Replay frames exported:[/bold cyan] {replay_path}"
+)
+        console.print(
+             f"\\n[bold green]Transition graph saved:[/bold green] {path}"
+        )       
 
     except LocalityLensError as e:
         console.print(f"[bold red]Error:[/bold red] {e}")

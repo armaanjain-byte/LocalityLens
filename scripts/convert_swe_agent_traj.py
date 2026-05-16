@@ -1,9 +1,10 @@
 import json
 import re
 from pathlib import Path
-
+from datetime import datetime, timedelta, timezone
+import random
 import pandas as pd
-
+from localitylens.semantic.session_state import SessionState
 
 INPUT_FILE = "data/raw/train-00000-of-00012.parquet"
 OUTPUT_FILE = "data/processed/normalized_trace.json"
@@ -51,59 +52,82 @@ def extract_commands(text: str):
 
     return commands
 
-def extract_event(command: str):
+def extract_event(command: str, state: SessionState):
     command = command.strip()
 
     if command.startswith("open "):
         parts = command.split(maxsplit=1)
 
         if len(parts) > 1:
+            target = parts[1].split()[0]
+
+            state.set_current_file(target)
+
             return {
                 "event_type": "file_read",
-                "target": parts[1],
+                "target": target,
             }
 
     if command.startswith("cat "):
         parts = command.split(maxsplit=1)
 
         if len(parts) > 1:
+            target = parts[1]
+
+            state.set_current_file(target)
+
             return {
                 "event_type": "file_read",
-                "target": parts[1],
+                "target": target,
             }
 
     if command.startswith("edit "):
+        current = state.get_current_file()
+
         return {
             "event_type": "file_write",
-            "target": "active_file",
+            "target": current or "unknown_file",
         }
 
     if command.startswith("create "):
         parts = command.split(maxsplit=1)
 
         if len(parts) > 1:
+            target = parts[1]
+
+            state.set_current_file(target)
+
             return {
                 "event_type": "file_write",
-                "target": parts[1],
+                "target": target,
             }
 
     if command.startswith("search_file "):
-        return {
-            "event_type": "search",
-            "target": command,
-        }
+       return {
+    "event_type": "search",
+    "target": "search_operation",
+    "metadata": {
+        "query": command,
+    },
+}
 
     if command.startswith("search_dir "):
         return {
-            "event_type": "search",
-            "target": command,
-        }
+    "event_type": "search",
+    "target": "search_operation",
+    "metadata": {
+        "query": command,
+    },
+}
 
     if command.startswith("find_file "):
         return {
-            "event_type": "search",
-            "target": command,
-        }
+    "event_type": "search",
+    "target": "search_operation",
+    "metadata": {
+        "query": command,
+    },
+}
 
     if command.startswith("submit"):
         return {
@@ -120,6 +144,8 @@ def main():
     df = pd.read_parquet(INPUT_FILE)
 
     normalized_events = []
+    state = SessionState()
+    current_time = datetime.now(timezone.utc)
 
     for row_index, row in df.iterrows():
         instance_id = row["instance_id"]
@@ -131,15 +157,34 @@ def main():
             commands = extract_commands(text)
 
         for command in commands:
-            event = extract_event(command)
+            event = extract_event(command,state)
 
             if not event:
                 continue
 
-            
+            if event["event_type"] == "file_read":
+                delta = random.randint(1, 3)
+            elif event["event_type"] == "file_write":
+                delta = random.randint(5, 15)
+
+            elif event["event_type"] == "search":
+                delta = random.randint(2, 6)
+
+            elif event["event_type"] == "submit":
+                delta = random.randint(1, 2)
+
+            else:
+                delta = random.randint(1, 4)
+
+            if random.random() < 0.03:
+                delta += random.randint(30, 90)
+
+
+            current_time += timedelta(seconds=delta)
 
             normalized_event = {
-                "timestamp": step_index,
+                "metadata": event.get("metadata", {}),
+                "timestamp": current_time.isoformat(),
                 "instance_id": instance_id,
                 "source": "swe-agent",
                 "kind": event["event_type"],

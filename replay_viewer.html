@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LocalityLens Replay</title>
+
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+<style>
+body {
+    margin: 0;
+    background: #0b1020;
+    color: white;
+    font-family: Arial;
+}
+
+#controls {
+    padding: 10px;
+    background: #111827;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+button {
+    background: #2563eb;
+    border: none;
+    color: white;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #1d4ed8;
+}
+
+#status {
+    margin-left: 20px;
+}
+
+#mynetwork {
+    width: 100vw;
+    height: calc(100vh - 60px);
+    background: #050816;
+}
+</style>
+</head>
+
+<body>
+
+<div id="controls">
+    <button onclick="play()">Play</button>
+    <button onclick="pause()">Pause</button>
+    <button onclick="stepForward()">Step</button>
+
+    <span id="status">Loading...</span>
+</div>
+
+<div id="mynetwork"></div>
+
+<script>
+
+let frames = [];
+let current = 0;
+let timer = null;
+
+const nodes = new vis.DataSet([]);
+const edges = new vis.DataSet([]);
+
+const container = document.getElementById("mynetwork");
+
+const data = {
+    nodes: nodes,
+    edges: edges
+};
+
+const options = {
+    physics: {
+        stabilization: false,
+        barnesHut: {
+            gravitationalConstant: -2000,
+            springLength: 120
+        }
+    },
+
+    nodes: {
+        shape: "dot",
+        size: 12,
+        font: {
+            color: "white"
+        }
+    },
+
+    edges: {
+        arrows: "to",
+        color: {
+            color: "#4ea1ff"
+        },
+        smooth: true
+    },
+
+    interaction: {
+        hover: true
+    }
+};
+
+const network = new vis.Network(container, data, options);
+
+fetch("replay_frames.json")
+.then(res => res.json())
+.then(data => {
+
+    frames = data;
+
+    document.getElementById("status").innerText =
+        `Loaded ${frames.length} frames`;
+
+});
+
+function ensureNode(id) {
+
+    if (!nodes.get(id)) {
+
+        nodes.add({
+            id: id,
+            label: id.split("/").pop(),
+            color: "#66b3ff"
+        });
+    }
+}
+
+function renderFrame(frame) {
+
+    ensureNode(frame.from);
+    ensureNode(frame.to);
+
+    const nodeVisits = {};
+
+function renderFrame(frame) {
+
+    ensureNode(frame.from);
+    ensureNode(frame.to);
+
+    nodeVisits[frame.to] =
+        (nodeVisits[frame.to] || 0) + 1;
+
+    const visits = nodeVisits[frame.to];
+
+    let color = "#66b3ff";
+    let size = 12;
+
+    if (visits > 250) {
+        color = "#ff3b3b";
+        size = 42;
+    }
+
+    else if (visits > 120) {
+        color = "#ff944d";
+        size = 30;
+    }
+
+    else if (visits > 40) {
+        color = "#ffd24d";
+        size = 22;
+    }
+
+    nodes.update({
+        id: frame.to,
+        color: color,
+        size: size
+    });
+
+    edges.add({
+        id: current,
+        from: frame.from,
+        to: frame.to,
+        color: "#4ea1ff"
+    });
+
+    document.getElementById("status").innerText =
+        `Step ${frame.step}
+         | ${frame.event_type}
+         | ${frame.from.split("/").pop()}
+         → ${frame.to.split("/").pop()}
+         | visits=${visits}`;
+}
+
+    nodes.update({
+        id: frame.to,
+        color: "#ff4d4d",
+        size: 28
+    });
+
+    edges.add({
+        id: current,
+        from: frame.from,
+        to: frame.to,
+        color: "#4ea1ff"
+    });
+
+    document.getElementById("status").innerText =
+        `Step ${frame.step} | ${frame.event_type}
+         | ${frame.from.split("/").pop()}
+         → ${frame.to.split("/").pop()}`;
+}
+
+function stepForward() {
+
+    if (current >= frames.length)
+        return;
+
+    renderFrame(frames[current]);
+
+    current++;
+}
+
+function play() {
+
+    if (timer)
+        return;
+
+    timer = setInterval(() => {
+
+        if (current >= frames.length) {
+
+            pause();
+            return;
+        }
+
+        stepForward();
+
+    }, 80);
+}
+
+function pause() {
+
+    clearInterval(timer);
+    timer = null;
+}
+
+</script>
+
+</body>
+</html>

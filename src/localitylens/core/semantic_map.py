@@ -16,12 +16,21 @@ class FileNode:
 
 @dataclass
 class SemanticMap:
-    """Mapping from trace events to code entities."""
+    
 
     trace_id: str
+
     files: dict[str, FileNode] = field(default_factory=dict)
     event_file_index: dict[int, str] = field(default_factory=dict)
-    _cached_sequence: list[str] | None = field(default=None, init=False, repr=False)
+    imports: dict[str, set[str]] = field(default_factory=dict)
+    transitions: list = field(default_factory=list)
+    reverse_imports: dict = field(default_factory=dict)
+
+    _cached_sequence: list[str] | None = field(
+        default=None,
+        init=False,
+        repr=False,
+    )
 
     def register_touch(self, seq: int, path: str) -> None:
         """Record file interactions with validation guards."""
