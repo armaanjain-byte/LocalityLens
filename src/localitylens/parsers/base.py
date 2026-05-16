@@ -1,4 +1,4 @@
-"""Parser protocol and abstract base with unique path hashing handles."""
+"""Parser protocol and abstract base for trace file parsers with portable path hashing."""
 
 from __future__ import annotations
 
@@ -16,8 +16,13 @@ class ParserProtocol(Protocol):
 
     format: TraceFormat
 
-    def can_parse(self, path: Path) -> bool: ...
-    def parse(self, path: Path) -> Trace: ...
+    def can_parse(self, path: Path) -> bool:
+        """Return ``True`` when this parser can handle *path*."""
+        ...
+
+    def parse(self, path: Path) -> Trace:
+        """Parse *path and return a Trace."""
+        ...
 
 
 class BaseParser(ABC):
@@ -32,8 +37,8 @@ class BaseParser(ABC):
     def parse(self, path: Path) -> Trace: ...
 
     def _make_trace_id(self, path: Path) -> str:
-        """Derive a collision-resistant trace ID using absolute file path digests."""
-        # H-5: Block collisions between traces sharing duplicate base filenames
-        abs_path = str(path.resolve())
-        digest = hashlib.sha1(abs_path.encode(), usedforsecurity=False).hexdigest()[:8]
+        """Derive a stable, cross-platform trace ID from the file path."""
+        # Finding 6: Normalise to POSIX separators so IDs remain cross-platform portable
+        posix_path = path.resolve().as_posix()
+        digest = hashlib.sha1(posix_path.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
         return f"{path.stem}_{digest}"

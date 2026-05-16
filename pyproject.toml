@@ -13,6 +13,7 @@ dependencies = [
     "pydantic",
     "networkx",
     "tree-sitter",
+    "tree-sitter-python",  # <-- Add this line here
 ]
 
 [project.optional-dependencies]

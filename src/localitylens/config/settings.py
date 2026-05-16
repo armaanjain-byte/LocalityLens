@@ -1,4 +1,4 @@
-"""Application configuration with frozen immutability constraints."""
+"""Application-wide configuration via pydantic-settings with upward traversal loading."""
 
 import tomllib
 from pathlib import Path
@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class ThresholdSettings(BaseModel):
     """Thresholds for analysis engines."""
 
-    model_config = ConfigDict(frozen=True)  # H-4: Prevent threshold mutations
+    model_config = ConfigDict(frozen=True)
 
     locality_window: int = Field(10, ge=1, description="Sliding window size for locality scoring")
     thrash_repeat_limit: int = Field(3, ge=2, description="Min revisits to flag thrashing")
@@ -19,7 +19,7 @@ class ThresholdSettings(BaseModel):
 class Settings(BaseModel):
     """Top-level application settings."""
 
-    model_config = ConfigDict(frozen=True)  # H-4: Ensure global settings instance is read-only
+    model_config = ConfigDict(frozen=True)
 
     app_name: str = "LocalityLens"
     version: str = "0.1.0"
@@ -27,10 +27,18 @@ class Settings(BaseModel):
     thresholds: ThresholdSettings = Field(default_factory=ThresholdSettings)
 
     @classmethod
-    def load(cls) -> "Settings":
-        """Load settings from an optional localitylens.toml file."""
-        config_path = Path("localitylens.toml")
-        if not config_path.is_file():
+    def load(cls, config_path: Path | None = None) -> "Settings":
+        """Load settings; searches upward from the current working directory to find config files."""
+        if config_path is None:
+            # Finding 4: Dynamically locate the nearest localitylens.toml upwards from active directory
+            cwd = Path.cwd()
+            for parent in [cwd, *cwd.parents]:
+                candidate = parent / "localitylens.toml"
+                if candidate.is_file():
+                    config_path = candidate
+                    break
+
+        if config_path is None or not config_path.is_file():
             return cls()
 
         try:

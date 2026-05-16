@@ -1,4 +1,4 @@
-"""Maps raw trace events to semantic entities via stack-based tree-sitter walks."""
+"""Maps raw trace events to semantic entities via cached, cross-platform tree-sitter walks."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from localitylens.utils.logger import get_logger
 log = get_logger(__name__)
 _FILE_KINDS = {EventKind.FILE_READ, EventKind.FILE_WRITE, EventKind.FILE_DELETE}
 
-# M-7: Check tool presence and isolate bindings safely
 _TS_AVAILABLE = False
 try:
     import tree_sitter
@@ -25,42 +24,62 @@ except ImportError:
 
 
 class SemanticMapper:
-    """Build a SemanticMap and handle dependency graph extraction passes."""
+    """Build a SemanticMap and handle dependency graph extraction passes with unified paths."""
 
-    _MAX_FILE_BYTES = 1 * 1024 * 1024  # 1MB size threshold protection cap
+    _MAX_FILE_BYTES = 1 * 1024 * 1024
+
+    def __init__(self) -> None:
+        # Finding 5: Cache the tree-sitter parser instance to stop O(N) allocation loops
+        self._parser: tree_sitter.Parser | None = None
+
+    def _get_parser(self) -> tree_sitter.Parser | None:
+        """Lazy-init a single tree-sitter Parser instance, reused across all files."""
+        if self._parser is None and _TS_AVAILABLE:
+            try:
+                self._parser = tree_sitter.Parser(tree_sitter.Language(ts_py.language()))
+            except Exception as exc:
+                log.debug("Failed to initialize tree-sitter parser: %s", exc)
+        return self._parser
+
+    def _normalise_path(self, path_str: str) -> str:
+        """Finding 6: Convert OS backslashes to standard POSIX keys for cross-platform matching."""
+        return Path(path_str).as_posix()
 
     def build(self, trace: Trace) -> SemanticMap:
         smap = SemanticMap(trace_id=trace.trace_id)
         for event in trace.events:
             if event.kind in _FILE_KINDS and event.target:
-                smap.register_touch(seq=event.sequence, path=event.target)
-                if event.target in smap.files:
-                    self._enrich_file_symbols(event.target, smap.files[event.target])
+                # Finding 6: Normalise the input key immediately before registration
+                norm_path = self._normalise_path(event.target)
+                smap.register_touch(seq=event.sequence, path=norm_path)
+                if norm_path in smap.files:
+                    self._enrich_file_symbols(norm_path, smap.files[norm_path])
         return smap
 
     def build_graph(self, trace: Trace) -> DependencyGraph:
         graph = DependencyGraph()
         for event in trace.events:
             if event.kind is EventKind.SYMBOL_LOOKUP and event.target:
+                file_metadata = event.metadata.get("file", "")
+                norm_file = self._normalise_path(file_metadata) if file_metadata else ""
                 sym = Symbol(
                     name=event.target,
                     kind=SymbolKind.UNKNOWN,
-                    file_path=event.metadata.get("file", ""),
+                    file_path=norm_file,
                 )
                 graph.add_symbol(sym)
                 dep = event.metadata.get("depends_on")
                 if dep:
                     graph.add_dependency(event.target, dep)
 
-        # M-7: Automate edge resolution by analyzing active file dependencies
-        unique_files = {e.target for e in trace.events if e.kind in _FILE_KINDS and e.target}
+        unique_files = {self._normalise_path(e.target) for e in trace.events if e.kind in _FILE_KINDS and e.target}
         for file_str in unique_files:
             self._extract_dependencies_from_file(file_str, graph)
         return graph
 
-    # M-7: Iterative loop structure bypasses recursion depth limit risks completely
     def _enrich_file_symbols(self, path_str: str, file_node: Any) -> None:
-        if not _TS_AVAILABLE:
+        parser = self._get_parser()
+        if not parser:
             return
         path = Path(path_str)
         if not path.is_file() or path.suffix != ".py":
@@ -70,10 +89,8 @@ class SemanticMapper:
             if path.stat().st_size > self._MAX_FILE_BYTES:
                 return
             content = path.read_bytes()
-            parser = tree_sitter.Parser(tree_sitter.Language(ts_py.language()))
             tree = parser.parse(content)
 
-            # Iterative explicit array stack traversal
             stack = [tree.root_node]
             while stack:
                 node = stack.pop()
@@ -90,7 +107,8 @@ class SemanticMapper:
             log.debug("AST parse failed for %s: %s", path_str, exc)
 
     def _extract_dependencies_from_file(self, path_str: str, graph: DependencyGraph) -> None:
-        if not _TS_AVAILABLE:
+        parser = self._get_parser()
+        if not parser:
             return
         path = Path(path_str)
         if not path.is_file() or path.suffix != ".py":
@@ -100,7 +118,6 @@ class SemanticMapper:
             if path.stat().st_size > self._MAX_FILE_BYTES:
                 return
             content = path.read_bytes()
-            parser = tree_sitter.Parser(tree_sitter.Language(ts_py.language()))
             tree = parser.parse(content)
 
             stack = [tree.root_node]

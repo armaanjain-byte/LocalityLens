@@ -1,4 +1,4 @@
-"""Parser for generic JSON array trace files with non-mutating transforms."""
+"""Parser for generic JSON array trace files with target validation filters."""
 
 from __future__ import annotations
 
@@ -37,7 +37,11 @@ class GenericJsonParser(BaseParser):
             if not isinstance(raw, dict):
                 log.warning("Skipping non-object element at index %d", idx)
                 continue
-            events.append(self._convert(raw, sequence=idx))
+            
+            # Finding 7: Filter out skipped elements gracefully
+            event = self._convert(raw, sequence=idx)
+            if event is not None:
+                events.append(event)
 
         if not events:
             raise ParseError(f"No events found in {path}")
@@ -49,14 +53,18 @@ class GenericJsonParser(BaseParser):
             events=events,
         )
 
-    # H-6 & M-6: Strict typing with non-destructive attribute projection filters
-    def _convert(self, obj: dict[str, Any], sequence: int) -> TraceEvent:
+    def _convert(self, obj: dict[str, Any], sequence: int) -> TraceEvent | None:
+        """Convert a raw dict to a TraceEvent, returning None if the record is missing targets."""
         kind_raw = str(obj.get("kind", "unknown"))
         kind = EventKind(kind_raw) if kind_raw in EventKind._value2member_map_ else EventKind.UNKNOWN
         ts = self._parse_ts(obj.get("timestamp"))
-        target = str(obj.get("target", ""))
         
-        # Build metadata projection cleanly without stripping the source reference map
+        # Finding 7: Add defensive skip patterns for blank or unassigned path targets
+        target = str(obj.get("target", "")).strip()
+        if not target:
+            log.warning("Skipping event at sequence %d: missing or empty 'target'", sequence)
+            return None
+
         metadata = {
             k: v for k, v in obj.items()
             if k not in ("kind", "timestamp", "target")
