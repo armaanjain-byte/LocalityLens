@@ -1,5 +1,7 @@
-"""Application-wide configuration via pydantic-settings."""
+"""Application-wide configuration with dynamic TOML loading."""
 
+import tomllib
+from pathlib import Path
 from pydantic import BaseModel, Field
 
 
@@ -20,6 +22,22 @@ class Settings(BaseModel):
     log_level: str = "INFO"
     thresholds: ThresholdSettings = Field(default_factory=ThresholdSettings)
 
+    @classmethod
+    def load(cls) -> "Settings":
+        """Load settings from an optional localitylens.toml file in the current working directory."""
+        config_path = Path("localitylens.toml")
+        if not config_path.is_file():
+            return cls()
+
+        try:
+            with config_path.open("rb") as f:
+                data = tomllib.load(f)
+            # Pydantic v2 automatically uses defaults for any missing nested keys
+            return cls(**data)
+        except Exception:
+            # Gracefully fall back to internal defaults if parsing or validation fails
+            return cls()
+
 
 # Singleton instance used throughout the application.
-settings = Settings()
+settings = Settings.load()

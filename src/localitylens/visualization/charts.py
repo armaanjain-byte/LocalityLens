@@ -58,3 +58,50 @@ class TextReportVisualizer(BaseVisualizer):
     def _format_metric(m: MetricResult) -> str:
         badge = _colour(m.severity, f"[{m.severity.value.upper():8}]")
         return f"  {badge} {m.name:<24} {m.value:>8.4f}  {m.details}"
+    
+class MarkdownReportVisualizer(BaseVisualizer):
+    """Render an :class:`~localitylens.core.metrics.AnalysisReport` as
+    a professional, structured Markdown document file.
+    """
+
+    def render(self, report: AnalysisReport) -> str:
+        """Render *report* as a structured Markdown file string."""
+        worst = report.worst_severity()
+        
+        lines: list[str] = [
+            f"# LocalityLens Audit Report",
+            f"",
+            f"**Trace ID:** `{report.trace_id}`  ",
+            f"**Global Verdict:** `{worst.value.upper()}`",
+            f"",
+            f"## Summary Analysis Metrics",
+            f"",
+            f"| Status | Metric Name | Core Value | Diagnostic Analysis Details |",
+            f"| :--- | :--- | :---: | :--- |",
+        ]
+
+        for m in report.metrics:
+            status_emoji = self._get_emoji(m.severity)
+            lines.append(f"| {status_emoji} `{m.severity.value.upper()}` | **{m.name}** | `{m.value:.4f}` | {m.details} |")
+
+        if report.summary:
+            lines.extend([
+                f"",
+                f"## Executive Summary Verdict",
+                f"> {report.summary}"
+            ])
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def _get_emoji(severity: Severity) -> str:
+        """Map severity states to clean markdown visual emojis."""
+        if severity is Severity.OK:
+            return "🟢"
+        if severity is Severity.LOW:
+            return "🔵"
+        if severity is Severity.MEDIUM:
+            return "🟡"
+        if severity is Severity.HIGH:
+            return "🔴"
+        return "🟣"
