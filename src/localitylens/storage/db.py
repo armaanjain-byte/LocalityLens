@@ -1,10 +1,11 @@
-"""SQLite-backed storage for persisting analysis reports."""
+"""SQLite-backed engine with strict isolation constraints and guarded reads."""
 
 from __future__ import annotations
 
 import json
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 from localitylens.core.exceptions import StorageError
 from localitylens.core.metrics import AnalysisReport, MetricResult, Severity
@@ -12,64 +13,68 @@ from localitylens.utils.logger import get_logger
 
 log = get_logger(__name__)
 
-_CREATE_SQL = """
-CREATE TABLE IF NOT EXISTS reports (
-    trace_id  TEXT PRIMARY KEY,
-    summary   TEXT NOT NULL,
-    metrics   TEXT NOT NULL,    -- JSON array
-    stored_at TEXT DEFAULT (datetime('now'))
-);
-"""
-
 
 class ReportStore:
-    """Persist and retrieve :class:`~localitylens.core.metrics.AnalysisReport`
-    objects using a local SQLite database.
-
-    Args:
-        db_path: Filesystem path for the SQLite file.
-    """
+    """Persist and retrieve AnalysisReport objects safely using local SQLite storage."""
 
     def __init__(self, db_path: Path) -> None:
         self._db_path = db_path
         self._init_db()
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
-    def save(self, report: AnalysisReport) -> None:
-        """Persist *report*, replacing any existing entry with the same ID.
-
-        Args:
-            report: Report to store.
-
-        Raises:
-            StorageError: On database write failure.
-        """
-        metrics_json = json.dumps([self._metric_to_dict(m) for m in report.metrics])
+    # H-1: Eliminate executescript auto-commit behaviors via parameterised execute paths
+    def _init_db(self) -> None:
         try:
             with self._connect() as conn:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS reports (
+                        trace_id  TEXT PRIMARY KEY,
+                        summary   TEXT NOT NULL,
+                        metrics   TEXT NOT NULL,
+                        stored_at TEXT NOT NULL DEFAULT (datetime('now'))
+                    )
+                """)
                 conn.execute(
-                    "INSERT OR REPLACE INTO reports (trace_id, summary, metrics) VALUES (?, ?, ?)",
-                    (report.trace_id, report.summary, metrics_json),
+                    "CREATE TABLE IF NOT EXISTS reports (trace_id TEXT PRIMARY KEY)"
+                )  # SQLite handles duplicate calls cleanly via IF NOT EXISTS blocks
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_reports_stored_at ON reports (stored_at)"
                 )
+        except sqlite3.Error as exc:
+            raise StorageError(f"Cannot initialise DB at {self._db_path}: {exc}") from exc
+
+    # H-2: Active WAL concurrency optimizations and thread safety configurations
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self._db_path, timeout=10.0, check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        return conn
+
+    # H-3, L-3, & M-6 updates: Safe type mapping updates with UPSERT handling constraints
+    def save(self, report: AnalysisReport) -> None:
+        try:
+            metrics_json = json.dumps([self._metric_to_dict(m) for m in report.metrics])
+        except (TypeError, ValueError) as exc:
+            raise StorageError(
+                f"Cannot serialise metrics for report '{report.trace_id}': {exc}"
+            ) from exc
+
+        try:
+            with self._connect() as conn:
+                # L-3: Retain original stored_at marker parameters on update actions
+                conn.execute("""
+                    INSERT INTO reports (trace_id, summary, metrics, stored_at)
+                    VALUES (?, ?, ?, datetime('now'))
+                    ON CONFLICT(trace_id) DO UPDATE SET
+                        summary  = excluded.summary,
+                        metrics  = excluded.metrics
+                """, (report.trace_id, report.summary, metrics_json))
         except sqlite3.Error as exc:
             raise StorageError(f"Failed to save report {report.trace_id}: {exc}") from exc
         log.debug("Saved report for trace %s", report.trace_id)
 
+    # C-3: Trap unhandled json loads failures cleanly to satisfy core contracts
     def load(self, trace_id: str) -> AnalysisReport | None:
-        """Load a previously saved report by *trace_id*.
-
-        Args:
-            trace_id: Identifier of the trace.
-
-        Returns:
-            :class:`AnalysisReport` if found, ``None`` otherwise.
-
-        Raises:
-            StorageError: On database read failure.
-        """
         try:
             with self._connect() as conn:
                 row = conn.execute(
@@ -82,19 +87,17 @@ class ReportStore:
         if row is None:
             return None
 
-        raw_metrics = json.loads(row[2])
+        try:
+            raw_metrics: list[dict[str, Any]] = json.loads(row[2])
+        except json.JSONDecodeError as exc:
+            raise StorageError(
+                f"Corrupt metrics JSON for trace '{trace_id}': {exc}"
+            ) from exc
+
         metrics = [self._dict_to_metric(d) for d in raw_metrics]
         return AnalysisReport(trace_id=row[0], summary=row[1], metrics=metrics)
 
     def list_ids(self) -> list[str]:
-        """Return all stored trace IDs.
-
-        Returns:
-            List of trace ID strings.
-
-        Raises:
-            StorageError: On database read failure.
-        """
         try:
             with self._connect() as conn:
                 rows = conn.execute("SELECT trace_id FROM reports ORDER BY stored_at").fetchall()
@@ -102,36 +105,31 @@ class ReportStore:
             raise StorageError(f"Failed to list reports: {exc}") from exc
         return [r[0] for r in rows]
 
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
-
-    def _init_db(self) -> None:
-        try:
-            with self._connect() as conn:
-                conn.executescript(_CREATE_SQL)
-        except sqlite3.Error as exc:
-            raise StorageError(f"Cannot initialise DB at {self._db_path}: {exc}") from exc
-
-    def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self._db_path)
-
     @staticmethod
-    def _metric_to_dict(m: MetricResult) -> dict:
+    def _metric_to_dict(m: MetricResult) -> dict[str, Any]:
+        # H-3: Normalise sets and file structures into JSON-safe elements dynamically
+        def _json_safe(obj: object) -> object:
+            if isinstance(obj, set):
+                return sorted(obj)
+            if isinstance(obj, Path):
+                return str(obj)
+            return obj
+
+        safe_extra = {k: _json_safe(v) for k, v in m.extra.items()}
         return {
             "name": m.name,
             "value": m.value,
             "severity": m.severity.value,
             "details": m.details,
-            "extra": m.extra,
+            "extra": safe_extra,
         }
 
     @staticmethod
-    def _dict_to_metric(d: dict) -> MetricResult:
+    def _dict_to_metric(d: dict[str, Any]) -> MetricResult:
         return MetricResult(
-            name=d["name"],
-            value=d["value"],
-            severity=Severity(d["severity"]),
-            details=d.get("details", ""),
-            extra=d.get("extra", {}),
+            name=str(d["name"]),
+            value=float(d["value"]),
+            severity=Severity(str(d["severity"])),
+            details=str(d.get("details", "")),
+            extra=dict(d.get("extra", {})),
         )

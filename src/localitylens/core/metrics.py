@@ -1,4 +1,4 @@
-"""Metric result models produced by the analysis engines."""
+"""Metric result models with optimised lookup logic."""
 
 from __future__ import annotations
 
@@ -17,17 +17,13 @@ class Severity(str, Enum):
     CRITICAL = "critical"
 
 
+# M-1: Pre-computed rank mapping for O(1) weight comparisons
+_SEVERITY_RANK: dict[Severity, int] = {s: i for i, s in enumerate(Severity)}
+
+
 @dataclass
 class MetricResult:
-    """A single named metric computed over a trace.
-
-    Attributes:
-        name: Machine-readable metric identifier.
-        value: Numeric measurement.
-        severity: Qualitative classification of the value.
-        details: Human-readable explanation.
-        extra: Engine-specific supplementary data.
-    """
+    """A single named metric computed over a trace."""
 
     name: str
     value: float
@@ -38,31 +34,18 @@ class MetricResult:
 
 @dataclass
 class AnalysisReport:
-    """Aggregated output of all analysis engines for one trace.
-
-    Attributes:
-        trace_id: Identifier of the analysed trace.
-        metrics: All computed :class:`MetricResult` objects.
-        summary: One-line human-readable verdict.
-    """
+    """Aggregated output of all analysis engines for one trace."""
 
     trace_id: str
     metrics: list[MetricResult] = field(default_factory=list)
     summary: str = ""
 
-    # ------------------------------------------------------------------
-    # Convenience helpers
-    # ------------------------------------------------------------------
-
     def worst_severity(self) -> Severity:
-        """Return the highest :class:`Severity` across all metrics."""
-        order = list(Severity)
-        worst = Severity.OK
-        for m in self.metrics:
-            if order.index(m.severity) > order.index(worst):
-                worst = m.severity
-        return worst
+        """Return the highest Severity across all metrics in linear O(N) time."""
+        if not self.metrics:
+            return Severity.OK
+        return max(self.metrics, key=lambda m: _SEVERITY_RANK[m.severity]).severity
 
     def by_name(self, name: str) -> list[MetricResult]:
-        """Return all metrics whose *name* matches exactly."""
+        """Return all metrics whose name matches exactly."""
         return [m for m in self.metrics if m.name == name]

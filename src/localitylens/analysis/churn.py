@@ -1,4 +1,4 @@
-"""Churn analysis: ratio of writes to total file events."""
+"""Churn analysis engine with drift-corrected boundary limits."""
 
 from __future__ import annotations
 
@@ -8,19 +8,9 @@ from localitylens.core.trace import EventKind, Trace
 
 
 class ChurnAnalyzer:
-    """Measure write churn in a trace.
-
-    A high write-to-read ratio suggests the agent is rewriting code it just
-    read, which indicates poor context retention or thrashing.
-    """
+    """Measure write churn in a trace."""
 
     def analyze(self, trace: Trace, report: AnalysisReport) -> None:
-        """Append churn metrics to *report*.
-
-        Args:
-            trace: Source trace.
-            report: Report to append metrics to (mutated in place).
-        """
         reads = sum(1 for e in trace.events if e.kind is EventKind.FILE_READ)
         writes = sum(1 for e in trace.events if e.kind is EventKind.FILE_WRITE)
         total = reads + writes
@@ -41,12 +31,19 @@ class ChurnAnalyzer:
     @staticmethod
     def _classify(ratio: float) -> Severity:
         limit = settings.thresholds.churn_ratio_limit
-        if ratio <= limit * 0.5:
+        
+        # M-5: Round threshold limits explicitly to eliminate float representation drifts
+        t_ok = round(limit * 0.5, 10)
+        t_low = round(limit, 10)
+        t_medium = round(limit * 1.5, 10)
+        t_high = round(limit * 2.0, 10)
+
+        if ratio <= t_ok:
             return Severity.OK
-        if ratio <= limit:
+        if ratio <= t_low:
             return Severity.LOW
-        if ratio <= limit * 1.5:
+        if ratio <= t_medium:
             return Severity.MEDIUM
-        if ratio <= limit * 2.0:
+        if ratio <= t_high:
             return Severity.HIGH
         return Severity.CRITICAL

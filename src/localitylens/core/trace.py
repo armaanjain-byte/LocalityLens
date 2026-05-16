@@ -1,13 +1,9 @@
-"""Core trace data models.
-
-A *trace* is the full record of a single coding-agent session.
-It contains an ordered sequence of :class:`TraceEvent` objects.
-"""
+"""Core trace data models with strict timezone normalisation."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
@@ -34,16 +30,7 @@ class TraceFormat(str, Enum):
 
 @dataclass
 class TraceEvent:
-    """A single event within a coding-agent trace.
-
-    Attributes:
-        kind: Semantic category of the event.
-        timestamp: When the event occurred (UTC).
-        target: Primary resource touched (file path, symbol name, etc.).
-        metadata: Arbitrary extra data captured by the parser.
-        duration_ms: How long the event took, when available.
-        sequence: Zero-based position within the trace.
-    """
+    """A single event within a coding-agent trace."""
 
     kind: EventKind
     timestamp: datetime
@@ -52,30 +39,41 @@ class TraceEvent:
     duration_ms: Optional[float] = None
     sequence: int = 0
 
+    def __post_init__(self) -> None:
+        # C-2: Normalise naive timestamps to UTC so arithmetic never raises TypeError
+        if self.timestamp is not None:
+            if self.timestamp.tzinfo is None:
+                object.__setattr__(
+                    self, "timestamp",
+                    self.timestamp.replace(tzinfo=timezone.utc)
+                )
+        if not self.target:
+            raise ValueError("TraceEvent.target must not be empty")
+        if self.sequence < 0:
+            raise ValueError(f"TraceEvent.sequence must be >= 0, got {self.sequence}")
+
 
 @dataclass
 class Trace:
-    """Full coding-agent trace loaded from a single source file.
-
-    Attributes:
-        trace_id: Unique identifier (usually derived from the source path).
-        source: Path or URI the trace was loaded from.
-        format: Detected input format.
-        events: Ordered list of :class:`TraceEvent` objects.
-        agent: Name of the agent that produced the trace, if known.
-        started_at: Timestamp of the first event.
-        ended_at: Timestamp of the last event.
-    """
+    """Full coding-agent trace loaded from a single source file."""
 
     trace_id: str
     source: str
     format: TraceFormat
     events: list[TraceEvent] = field(default_factory=list)
     agent: Optional[str] = None
-    started_at: Optional[datetime] = None
-    ended_at: Optional[datetime] = None
 
-    def __post_init__(self) -> None:
-        if self.events:
-            self.started_at = self.events[0].timestamp
-            self.ended_at = self.events[-1].timestamp
+    # M-4: Use computed properties to ensure started_at/ended_at never go stale
+    @property
+    def started_at(self) -> Optional[datetime]:
+        """Dynamically fetch the timestamp of the first event."""
+        return self.events[0].timestamp if self.events else None
+
+    @property
+    def ended_at(self) -> Optional[datetime]:
+        """Dynamically fetch the timestamp of the last event."""
+        return self.events[-1].timestamp if self.events else None
+
+    def append_event(self, event: TraceEvent) -> None:
+        """Append an event while preserving live boundaries."""
+        self.events.append(event)
