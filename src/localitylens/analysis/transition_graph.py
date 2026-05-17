@@ -1,12 +1,14 @@
 from collections import Counter
 
+from localitylens.utils.filters import is_real_file_target
 from localitylens.core.metrics import (
     AnalysisReport,
     MetricResult,
     Severity,
+    MetricNames,
+    SeverityThresholds,
 )
 from localitylens.core.trace import Trace
-
 
 class TransitionGraphAnalyzer:
     """
@@ -20,17 +22,13 @@ class TransitionGraphAnalyzer:
 
     def analyze(self, trace: Trace, report: AnalysisReport) -> None:
         files = [
-    e.target
-    for e in trace.events
-    if (
-        e.kind.value in ("file_read", "file_write")
-        and e.target not in (
-            "session",
-            "unknown_file",
-            "search_operation",
-        )
-    )
-]
+            e.target
+            for e in trace.events
+            if (
+                e.kind.value in ("file_read", "file_write")
+                and is_real_file_target(e.target)
+            )
+        ]
 
         transitions = []
 
@@ -59,7 +57,7 @@ class TransitionGraphAnalyzer:
 
         report.metrics.append(
             MetricResult(
-                name="transition_concentration",
+                name=MetricNames.TRANSITION_CONCENTRATION,
                 value=round(dominant_ratio, 4),
                 severity=severity,
                 details=(
@@ -69,8 +67,8 @@ class TransitionGraphAnalyzer:
                 extra={
                     "total_transitions": total,
                     "top_edges": {
-                       f"{a}->{b}": count
-                       for (a, b), count in counts.items()
+                        f"{a}->{b}": count
+                        for (a, b), count in counts.items()
                     },
                 },
             )
@@ -78,16 +76,19 @@ class TransitionGraphAnalyzer:
 
     @staticmethod
     def _classify(ratio: float) -> Severity:
-        if ratio <= 0.05:
+
+        t = SeverityThresholds.TRANSITION_CONCENTRATION
+
+        if ratio <= t["low"]:
             return Severity.OK
 
-        if ratio <= 0.10:
+        if ratio <= t["medium"]:
             return Severity.LOW
 
-        if ratio <= 0.20:
+        if ratio <= t["high"]:
             return Severity.MEDIUM
 
-        if ratio <= 0.35:
+        if ratio <= t["critical"]:
             return Severity.HIGH
 
         return Severity.CRITICAL

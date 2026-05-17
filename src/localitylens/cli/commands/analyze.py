@@ -23,7 +23,7 @@ from localitylens.utils.logger import get_logger
 from localitylens.utils.validators import validate_file_exists
 from localitylens.visualization.charts import TextReportVisualizer
 from localitylens.analysis.context_entropy import ContextEntropyAnalyzer
-from localitylens.analysis.dependency_radius import DependencyRadiusAnalyzer
+from localitylens.analysis.dependency_jump import DependencyJumpAnalyzer
 from localitylens.visualization.transition_graph import (
     TransitionGraphVisualizer,
 )
@@ -36,11 +36,10 @@ PARSERS = [ClaudeCodeParser(), GenericJsonParser()]
 ANALYZERS = [
     AnomalyAnalyzer(),
     SemanticContinuityAnalyzer(),
-    DependencyRadiusAnalyzer(),
+    DependencyJumpAnalyzer(),
     ContextEntropyAnalyzer(),
     TransitionGraphAnalyzer(),
     ChurnAnalyzer(),
-    
     ThrashingAnalyzer(),
     WasteAnalyzer(),
 ]
@@ -81,7 +80,7 @@ def analyze_file(
                     analyzer.analyze(smap, report)
                 else:
                     analyzer.analyze(trace, report)
-
+        report.sort_metrics()
         # 5. Storage
         store = ReportStore(db_path)
         store.save(report)
@@ -99,8 +98,9 @@ def analyze_file(
         console.print(
     f"[bold cyan]Replay frames exported:[/bold cyan] {replay_path}"
 )
+        console.print()
         console.print(
-             f"\\n[bold green]Transition graph saved:[/bold green] {path}"
+             f"[bold green]Transition graph saved:[/bold green] {path}"
         )       
 
     except LocalityLensError as e:

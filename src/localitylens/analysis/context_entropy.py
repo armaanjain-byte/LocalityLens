@@ -1,12 +1,13 @@
 import math
 from collections import Counter
-
 from localitylens.core.metrics import (
     AnalysisReport,
     MetricResult,
     Severity,
+    MetricNames,
 )
 from localitylens.core.trace import Trace
+from localitylens.utils.filters import is_real_file_target
 
 
 class ContextEntropyAnalyzer:
@@ -27,13 +28,7 @@ class ContextEntropyAnalyzer:
             for e in trace.events
             if (
                 e.kind.value in ("file_read", "file_write")
-                and e.target not in (
-                    "session",
-                    "unknown_file",
-                    "search_operation",
-                )
-            )
-        ]
+                and is_real_file_target(e.target))]
 
         transitions = []
 
@@ -62,7 +57,7 @@ class ContextEntropyAnalyzer:
 
         report.metrics.append(
             MetricResult(
-                name="context_entropy",
+                name=MetricNames.CONTEXT_ENTROPY,
                 value=round(entropy, 4),
                 severity=severity,
                 details=(

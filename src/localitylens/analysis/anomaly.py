@@ -1,7 +1,7 @@
 from collections import Counter, deque
-
 from localitylens.core.metrics import Severity
 from localitylens.core.metrics import MetricResult
+from localitylens.core.metrics import MetricNames
 
 class AnomalyAnalyzer:
     """
@@ -116,7 +116,7 @@ class AnomalyAnalyzer:
 
         report.metrics.append(
     MetricResult(
-        name="behavioral_anomalies",
+        name=MetricNames.BEHAVIORAL_ANOMALIES,
         value=float(score),
         severity=severity,
         details=(

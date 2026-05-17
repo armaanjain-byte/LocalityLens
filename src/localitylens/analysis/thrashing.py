@@ -2,10 +2,15 @@ from collections import Counter
 
 from localitylens.core.metrics import (
     AnalysisReport,
+    MetricNames,
     MetricResult,
     Severity,
 )
 from localitylens.core.trace import Trace
+from localitylens.utils.filters import is_real_file_target
+
+
+OSCILLATION_PATTERN_LENGTH = 4
 
 
 class ThrashingAnalyzer:
@@ -20,23 +25,23 @@ class ThrashingAnalyzer:
     """
 
     def analyze(self, trace: Trace, report: AnalysisReport) -> None:
+
         files = [
-    e.target
-    for e in trace.events
-    if (
-        e.kind.value in ("file_read", "file_write")
-        and e.target not in (
-            "session",
-            "unknown_file",
-            "search_operation",
-        )
-    )
-]
+            e.target
+            for e in trace.events
+            if (
+                e.kind.value in ("file_read", "file_write")
+                and is_real_file_target(e.target)
+            )
+        ]
 
         oscillations = []
 
-        for i in range(len(files) - 3):
-            a, b, c, d = files[i:i + 4]
+        for i in range(
+            len(files) - (OSCILLATION_PATTERN_LENGTH - 1)
+        ):
+
+            a, b, c, d = files[i:i + OSCILLATION_PATTERN_LENGTH]
 
             if a == c and b == d and a != b:
                 oscillations.append((a, b))
@@ -54,7 +59,7 @@ class ThrashingAnalyzer:
 
         report.metrics.append(
             MetricResult(
-                name="oscillation_thrashing",
+                name=MetricNames.OSCILLATION_THRASHING,
                 value=float(total),
                 severity=severity,
                 details=(
@@ -64,8 +69,8 @@ class ThrashingAnalyzer:
                 extra={
                     "oscillations": total,
                     "top_pairs": {
-                       f"{a}<->{b}": count
-                       for (a, b), count in pair_counts.items()
+                        f"{a}<->{b}": count
+                        for (a, b), count in pair_counts.items()
                     },
                 },
             )
@@ -73,12 +78,16 @@ class ThrashingAnalyzer:
 
     @staticmethod
     def _classify(total: int) -> Severity:
+
         if total <= 5:
             return Severity.OK
+
         if total <= 20:
             return Severity.LOW
+
         if total <= 50:
             return Severity.MEDIUM
+
         if total <= 100:
             return Severity.HIGH
 

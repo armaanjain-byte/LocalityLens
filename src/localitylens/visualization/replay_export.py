@@ -16,23 +16,26 @@ class ReplayExporter:
         previous = None
 
         for idx, event in enumerate(trace.events):
-
             target = getattr(event, "target", None)
 
             if not target:
                 continue
 
             if previous is not None:
-                timestamp = getattr(event, "timestamp", idx)
+                raw_timestamp = getattr(event, "timestamp", idx)
 
-                if hasattr(timestamp, "isoformat"):
-                 timestamp = timestamp.isoformat()
+                timestamp = (
+                raw_timestamp.isoformat()
+                if hasattr(raw_timestamp, "isoformat")
+                else raw_timestamp
+               )
+
                 frame = {
-                    "step": idx,
-                    "timestamp": timestamp,
-                    "from": previous,
-                    "to": target,
-                    "event_type": event.kind.value,
+                "step": idx,
+                "timestamp": timestamp,
+                "from": previous,
+                "to": target,
+                 "event_type": event.kind.value,
                 }
 
                 frames.append(frame)

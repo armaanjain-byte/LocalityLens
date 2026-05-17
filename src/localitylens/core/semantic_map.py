@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from collections import defaultdict
 
 
 @dataclass
@@ -22,15 +23,28 @@ class SemanticMap:
 
     files: dict[str, FileNode] = field(default_factory=dict)
     event_file_index: dict[int, str] = field(default_factory=dict)
-    imports: dict[str, set[str]] = field(default_factory=dict)
-    transitions: list = field(default_factory=list)
-    reverse_imports: dict = field(default_factory=dict)
+    imports: dict[str, set[str]] = field(
+    default_factory=lambda: defaultdict(set)
+    )
+
+    transitions: list[tuple[str, str]] = field(
+    default_factory=list
+    )
+
+    reverse_imports: dict[str, set[str]] = field(
+    default_factory=lambda: defaultdict(set)
+    )
 
     _cached_sequence: list[str] | None = field(
         default=None,
         init=False,
         repr=False,
     )
+    
+     
+    def add_import(self, source: str, target: str) -> None:
+        self.imports[source].add(target)
+        self.reverse_imports[target].add(source)
 
     def register_touch(self, seq: int, path: str) -> None:
         """Record file interactions with validation guards."""

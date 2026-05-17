@@ -3,8 +3,16 @@
 from __future__ import annotations
 
 from localitylens.config.settings import settings
-from localitylens.core.metrics import AnalysisReport, MetricResult, Severity
+from localitylens.core.metrics import (
+    AnalysisReport,
+    MetricNames,
+    MetricResult,
+    Severity,
+)
 from localitylens.core.trace import Trace
+
+
+IDLE_GAP_THRESHOLD_SECONDS = settings.thresholds.waste_gap_seconds
 
 
 class WasteAnalyzer:
@@ -22,11 +30,13 @@ class WasteAnalyzer:
             trace: Source trace.
             report: Report to append metrics to (mutated in place).
         """
+
         events = trace.events
+
         if len(events) < 2:
             report.metrics.append(
                 MetricResult(
-                    name="waste_gap_count",
+                    name=MetricNames.WASTE_GAP_COUNT,
                     value=0.0,
                     severity=Severity.OK,
                     details="Not enough events to detect gaps.",
@@ -34,38 +44,51 @@ class WasteAnalyzer:
             )
             return
 
-        threshold = settings.thresholds.waste_gap_seconds
         gaps: list[float] = []
 
         for prev, curr in zip(events, events[1:]):
-            delta = (curr.timestamp - prev.timestamp).total_seconds()
-            if delta >= threshold:
+
+            delta = (
+                curr.timestamp - prev.timestamp
+            ).total_seconds()
+
+            if delta >= IDLE_GAP_THRESHOLD_SECONDS:
                 gaps.append(delta)
 
         total_waste = sum(gaps)
+
         severity = self._classify(len(gaps))
 
         report.metrics.append(
             MetricResult(
-                name="waste_gap_count",
+                name=MetricNames.WASTE_GAP_COUNT,
                 value=float(len(gaps)),
                 severity=severity,
                 details=(
-                    f"{len(gaps)} idle gap(s) ≥{threshold}s detected; "
+                    f"{len(gaps)} idle gap(s) "
+                    f"≥{IDLE_GAP_THRESHOLD_SECONDS}s detected; "
                     f"total idle time: {total_waste:.1f}s."
                 ),
-                extra={"total_waste_seconds": total_waste, "gaps": gaps[:10]},
+                extra={
+                    "total_waste_seconds": total_waste,
+                    "gaps": gaps[:10],
+                },
             )
         )
 
     @staticmethod
     def _classify(count: int) -> Severity:
+
         if count == 0:
             return Severity.OK
+
         if count <= 2:
             return Severity.LOW
+
         if count <= 5:
             return Severity.MEDIUM
+
         if count <= 10:
             return Severity.HIGH
+
         return Severity.CRITICAL

@@ -2,7 +2,6 @@ from collections import Counter, defaultdict
 
 from pyvis.network import Network
 
-
 class TransitionGraphVisualizer:
     """Interactive transition graph for repository movement."""
 

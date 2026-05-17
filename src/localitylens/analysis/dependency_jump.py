@@ -2,11 +2,12 @@ from localitylens.core.metrics import (
     AnalysisReport,
     MetricResult,
     Severity,
+    MetricNames,
 )
 from localitylens.core.semantic_map import SemanticMap
 
 
-class DependencyRadiusAnalyzer:
+class DependencyJumpAnalyzer:
     """
     Measure semantic jump distance between
     consecutive file transitions.
@@ -24,7 +25,7 @@ class DependencyRadiusAnalyzer:
         if not transitions:
             report.metrics.append(
                 MetricResult(
-                    name="dependency_jump_radius",
+                    name=MetricNames.DEPENDENCY_JUMP_RADIUS,
                     value=0.0,
                     severity=Severity.OK,
                     details="No transitions available.",

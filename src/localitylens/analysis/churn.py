@@ -1,10 +1,10 @@
 """Churn analysis engine with drift-corrected boundary limits."""
 
 from __future__ import annotations
-
 from localitylens.config.settings import settings
 from localitylens.core.metrics import AnalysisReport, MetricResult, Severity
 from localitylens.core.trace import EventKind, Trace
+from localitylens.core.metrics import MetricNames
 
 
 class ChurnAnalyzer:
@@ -20,7 +20,7 @@ class ChurnAnalyzer:
 
         report.metrics.append(
             MetricResult(
-                name="churn_ratio",
+                name=MetricNames.CHURN_RATIO,
                 value=round(ratio, 4),
                 severity=severity,
                 details=f"{writes} writes / {total} file events (reads + writes).",

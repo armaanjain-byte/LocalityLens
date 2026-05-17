@@ -1,7 +1,6 @@
 """Locality analysis: measures how focused the agent's file access is."""
 
 from __future__ import annotations
-
 from localitylens.config.settings import settings
 from localitylens.core.metrics import AnalysisReport, MetricResult, Severity
 from localitylens.core.semantic_map import SemanticMap

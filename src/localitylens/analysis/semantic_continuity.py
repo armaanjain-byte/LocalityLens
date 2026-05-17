@@ -2,6 +2,7 @@ from localitylens.core.metrics import (
     AnalysisReport,
     MetricResult,
     Severity,
+    MetricNames,
 )
 from localitylens.core.semantic_map import SemanticMap
 
@@ -18,7 +19,7 @@ class SemanticContinuityAnalyzer:
         if not transitions:
             report.metrics.append(
                 MetricResult(
-                    name="semantic_continuity",
+                    name=MetricNames.SEMANTIC_CONTINUITY,
                     value=1.0,
                     severity=Severity.OK,
                     details="No transitions available.",

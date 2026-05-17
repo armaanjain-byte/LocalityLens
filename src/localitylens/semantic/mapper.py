@@ -22,9 +22,7 @@ class SemanticMapper:
     def build(self, trace):
         smap = SemanticMap(trace_id=trace.trace_id)
 
-        # Dynamic fields added during construction
-        smap.transitions = []
-        smap.reverse_imports = defaultdict(set)
+        
 
         previous = None
 
@@ -81,7 +79,7 @@ class SemanticMapper:
 
         for files in parent_buckets.values():
             for src in files:
-                smap.imports.setdefault(src, set())
+                
 
                 for dst in files:
                     if src != dst:
@@ -91,9 +89,7 @@ class SemanticMapper:
         # Reverse dependency graph
         # -----------------------------
 
-        for src, targets in smap.imports.items():
-            for dst in targets:
-                smap.reverse_imports[dst].add(src)
+        
 
         return smap
 
