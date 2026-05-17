@@ -1,0 +1,276 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>LocalityLens — Behavioral Workflow Map</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background:
+                radial-gradient(circle at top, #0f172a 0%, #020617 70%);
+            font-family: Inter, system-ui, sans-serif;
+            color: white;
+        }
+
+        #overlay {
+            position: fixed;
+            top: 24px;
+            left: 24px;
+            width: 380px;
+            max-height: calc(100vh - 48px);
+            overflow-y: auto;
+            padding: 22px;
+
+            background: rgba(15, 23, 42, 0.72);
+            backdrop-filter: blur(14px);
+
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 18px;
+
+            box-shadow:
+                0 10px 40px rgba(0,0,0,0.45);
+
+            z-index: 9999;
+        }
+
+        #overlay h1 {
+            margin: 0 0 10px;
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+        }
+
+        #overlay p {
+            margin: 0 0 18px;
+            line-height: 1.7;
+            color: #cbd5e1;
+            font-size: 14px;
+        }
+
+        .section-title {
+            margin-top: 22px;
+            margin-bottom: 12px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #94a3b8;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #e2e8f0;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.03);
+        }
+
+        .metric span:first-child {
+            color: #cbd5e1;
+        }
+
+        .metric span:last-child {
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .hotspot-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.03);
+            color: #e2e8f0;
+            font-size: 14px;
+        }
+
+        #footer-note {
+            margin-top: 18px;
+            font-size: 12px;
+            color: #64748b;
+            line-height: 1.7;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 14px;
+            padding: 12px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(
+                135deg,
+                #2563eb,
+                #1d4ed8
+            );
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            opacity: 0.94;
+        }
+
+        iframe,
+        #mynetwork,
+        .card,
+        .vis-network {
+            border: none !important;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="overlay">
+
+        <h1>Behavioral Workflow Map</h1>
+
+        <p>
+            Interactive semantic workflow visualization showing repository
+            traversal behavior, instability hotspots, workflow loops,
+            and transition locality.
+        </p>
+
+        <div class="section-title">Behavioral Interpretation</div>
+
+        <div class="metric">
+            <span>High Entropy</span>
+            <span>Fragmented Workflow</span>
+        </div>
+
+        <div class="metric">
+            <span>Dense Loops</span>
+            <span>Repeated Context Cycling</span>
+        </div>
+
+        <div class="metric">
+            <span>Sparse Connectivity</span>
+            <span>Semantic Drift</span>
+        </div>
+
+        <div class="metric">
+            <span>Large Hotspots</span>
+            <span>Attention Concentration</span>
+        </div>
+
+        <div class="section-title">Top Workflow Hotspots</div>
+
+        {{HOTSPOTS}}
+
+        <div class="section-title">Node Categories</div>
+
+        <div class="legend-item">
+            <div class="dot" style="background:#60a5fa;"></div>
+            Core Source Files
+        </div>
+
+        <div class="legend-item">
+            <div class="dot" style="background:#10b981;"></div>
+            Utility Modules
+        </div>
+
+        <div class="legend-item">
+            <div class="dot" style="background:#06b6d4;"></div>
+            Configuration Files
+        </div>
+
+        <div class="legend-item">
+            <div class="dot" style="background:#a855f7;"></div>
+            Test Modules
+        </div>
+
+        <div class="section-title">Graph Semantics</div>
+
+        <div class="metric">
+            <span>Red Nodes</span>
+            <span>High Instability</span>
+        </div>
+
+        <div class="metric">
+            <span>Large Edges</span>
+            <span>Repeated Workflows</span>
+        </div>
+
+        <div class="metric">
+            <span>Faint Edges</span>
+            <span>Transient Jumps</span>
+        </div>
+
+        <button id="toggle-hotspots">
+            Toggle Low Activity Nodes
+        </button>
+
+        <div id="footer-note">
+            Hover nodes and edges to inspect workflow behavior,
+            transition strength, and semantic activity patterns.
+        </div>
+
+    </div>
+
+    {{GRAPH_CONTENT}}
+
+    <script>
+
+        let hidden = false;
+
+        document
+            .getElementById("toggle-hotspots")
+            .addEventListener("click", () => {
+
+                hidden = !hidden;
+
+                if (typeof network === "undefined") {
+                    return;
+                }
+
+                const updates = [];
+
+                nodes.forEach((node) => {
+
+                    if (node.size <= 10) {
+                        updates.push({
+                            id: node.id,
+                            hidden: hidden,
+                        });
+                    }
+                });
+
+                nodes.update(updates);
+            });
+
+    </script>
+
+</body>
+</html>
+```
