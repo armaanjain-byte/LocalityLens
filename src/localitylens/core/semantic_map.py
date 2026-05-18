@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 
+from localitylens.semantic.symbols import Symbol
+
 
 @dataclass
 class FileNode:
@@ -37,6 +39,7 @@ class SemanticMap:
     imports: dict[str, set[str]] = field(
         default_factory=lambda: defaultdict(set)
     )
+    symbols: dict[str, Symbol] = field(default_factory=dict)
     transitions: list[tuple[str, str]] = field(default_factory=list)
     reverse_imports: dict[str, set[str]] = field(
         default_factory=lambda: defaultdict(set)
@@ -65,6 +68,14 @@ class SemanticMap:
     def add_neighbor(self, source: str, target: str) -> None:
         """Record non-dependency semantic adjacency for locality scoring."""
         self.neighbors[source].add(target)
+
+    def add_symbol(self, symbol: Symbol) -> None:
+        """Index a symbol definition by its fully qualified and short names."""
+        self.symbols[symbol.name] = symbol
+        short_name = symbol.name.rsplit(".", maxsplit=1)[-1]
+        self.symbols.setdefault(short_name, symbol)
+        if symbol.file_path in self.files:
+            self.files[symbol.file_path].symbol_names.append(symbol.name)
 
     def dependency_graph(self) -> dict[str, set[str]]:
         """Return an undirected view of import relationships for graph metrics."""

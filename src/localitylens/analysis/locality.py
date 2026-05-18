@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from localitylens.config.settings import settings
+from localitylens.config.settings import get_settings
 from localitylens.core.metrics import AnalysisReport, MetricNames, MetricResult, Severity
 from localitylens.core.semantic_map import SemanticMap
 from localitylens.core.trace import Trace
@@ -32,6 +32,7 @@ class LocalityAnalyzer:
             )
             return
 
+        settings = get_settings()
         window = settings.thresholds.locality_window
         local_hits = 0
         total_windows = 0

@@ -81,7 +81,26 @@ class TestSemanticMapper:
 
         assert "pkg/b.py" in smap.imports.get("pkg/a.py", set())
         assert "pkg/a.py" in smap.reverse_imports.get("pkg/b.py", set())
-        assert smap.files["pkg/a.py"].symbol_names == ["A"]
+        assert smap.files["pkg/a.py"].symbol_names == ["pkg.a.A"]
+        assert smap.symbols["pkg.a.A"].line == 3
+
+    def test_ast_symbol_index_includes_methods_and_short_names(self, tmp_path):
+        mapper = SemanticMapper()
+        package = tmp_path / "pkg"
+        package.mkdir()
+        (package / "a.py").write_text(
+            "def top():\n    pass\n\nclass A:\n    def method(self):\n        pass\n",
+            encoding="utf-8",
+        )
+        trace = _make_trace(["pkg/a.py"])
+        trace.source = str(tmp_path / "trace.json")
+
+        smap = mapper.build(trace)
+
+        assert "pkg.a.top" in smap.symbols
+        assert "pkg.a.A" in smap.symbols
+        assert "pkg.a.A.method" in smap.symbols
+        assert smap.symbols["method"].file_path == "pkg/a.py"
 
     def test_ignored_targets_excluded(self):
         """session, unknown_file, search_operation must not appear in transitions or files."""

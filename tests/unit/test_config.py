@@ -1,6 +1,6 @@
 """Unit tests for the dynamic configuration loading system."""
 
-from localitylens.config.settings import Settings
+from localitylens.config.settings import Settings, get_settings
 
 
 def test_settings_fallback_to_defaults(tmp_path):
@@ -27,3 +27,13 @@ def test_settings_override_via_toml(tmp_path):
     assert loaded_settings.log_level == "DEBUG"
     assert loaded_settings.thresholds.thrash_repeat_limit == 5
     assert loaded_settings.thresholds.locality_window == 10
+
+
+def test_get_settings_returns_fresh_values(tmp_path):
+    first = tmp_path / "first.toml"
+    second = tmp_path / "second.toml"
+    first.write_text("log_level = \"DEBUG\"\n", encoding="utf-8")
+    second.write_text("log_level = \"WARNING\"\n", encoding="utf-8")
+
+    assert get_settings(first).log_level == "DEBUG"
+    assert get_settings(second).log_level == "WARNING"

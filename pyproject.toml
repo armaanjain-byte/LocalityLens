@@ -27,6 +27,12 @@ dev = [
 [project.scripts]
 localitylens = "localitylens.cli.main:app"
 
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.black]
 line-length = 100
 

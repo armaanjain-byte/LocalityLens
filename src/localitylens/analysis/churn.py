@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from localitylens.config.settings import settings
+from localitylens.config.settings import get_settings
 from localitylens.core.metrics import AnalysisReport, MetricNames, MetricResult, Severity
 from localitylens.core.semantic_map import SemanticMap
 from localitylens.core.trace import EventKind, Trace
@@ -37,6 +37,7 @@ class ChurnAnalyzer:
 
     @staticmethod
     def _classify(ratio: float) -> Severity:
+        settings = get_settings()
         limit = settings.thresholds.churn_ratio_limit
 
         # Round to eliminate float-representation drift at boundaries

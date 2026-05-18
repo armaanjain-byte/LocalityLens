@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from localitylens.config.settings import settings
+from localitylens.config.settings import get_settings
 from localitylens.core.metrics import AnalysisReport, MetricNames, MetricResult, Severity
 from localitylens.core.semantic_map import SemanticMap
 from localitylens.core.trace import Trace
@@ -17,6 +17,7 @@ class WasteAnalyzer:
     def analyze(self, trace: Trace, smap: SemanticMap, report: AnalysisReport) -> None:
         del smap
 
+        settings = get_settings()
         threshold = settings.thresholds.waste_gap_seconds
         events = trace.events
 

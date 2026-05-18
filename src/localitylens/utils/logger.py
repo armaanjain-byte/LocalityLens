@@ -4,13 +4,10 @@ import logging
 import sys
 from typing import Optional
 
-from localitylens.config.settings import settings
-
-
 def get_logger(name: str, level: Optional[str] = None) -> logging.Logger:
     """Return a named logger configured for the application."""
     logger = logging.getLogger(name)
-    resolved_level = (level or settings.log_level).upper()
+    resolved_level = level.upper() if level is not None else "INFO"
 
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stderr)

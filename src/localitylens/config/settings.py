@@ -64,5 +64,6 @@ class Settings(BaseModel):
             ) from exc
 
 
-# Singleton instance used throughout the application.
-settings = Settings.load()
+def get_settings(config_path: Path | None = None) -> Settings:
+    """Return freshly loaded settings for the current runtime context."""
+    return Settings.load(config_path=config_path)

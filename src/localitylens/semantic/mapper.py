@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import ast
 from collections import defaultdict
 from pathlib import Path
 
 from localitylens.core.semantic_map import SemanticMap
 from localitylens.core.trace import Trace
+from localitylens.semantic.python_ast import extract_python_semantics, module_name_from_path
 from localitylens.utils.logger import get_logger
 
 _IGNORED_TARGETS = frozenset({"session", "unknown_file", "search_operation"})
@@ -75,14 +75,14 @@ class SemanticMapper:
                 continue
 
             try:
-                tree = ast.parse(resolved.read_text(encoding="utf-8"), filename=str(resolved))
+                semantics = extract_python_semantics(resolved, logical_path=file_path)
             except (OSError, SyntaxError, UnicodeDecodeError):
                 continue
 
-            if file_path in smap.files:
-                smap.files[file_path].symbol_names = self._symbols(tree)
+            for symbol in semantics.symbols:
+                smap.add_symbol(symbol)
 
-            for module_name in self._imported_modules(tree, file_path):
+            for module_name in semantics.imports:
                 target = module_index.get(module_name)
                 if target and target != file_path:
                     smap.add_import(file_path, target)
@@ -107,15 +107,12 @@ class SemanticMapper:
             if path.suffix != ".py":
                 continue
 
-            parts = list(path.with_suffix("").parts)
-            if parts[-1] == "__init__":
-                parts = parts[:-1]
-            if not parts:
+            module_name = module_name_from_path(file_path)
+            if not module_name:
                 continue
 
-            module_name = ".".join(parts)
             SemanticMapper._put_module_index(index, module_name, file_path)
-            SemanticMapper._put_module_index(index, parts[-1], file_path)
+            SemanticMapper._put_module_index(index, module_name.rsplit(".", maxsplit=1)[-1], file_path)
 
         return index
 
@@ -143,39 +140,3 @@ class SemanticMapper:
             if resolved.is_file():
                 return resolved
         return None
-
-    @staticmethod
-    def _symbols(tree: ast.AST) -> list[str]:
-        symbols: list[str] = []
-        for node in ast.iter_child_nodes(tree):
-            if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
-                symbols.append(node.name)
-        return symbols
-
-    @staticmethod
-    def _imported_modules(tree: ast.AST, source_path: str) -> set[str]:
-        modules: set[str] = set()
-        source_module_parts = list(Path(source_path).with_suffix("").parts)
-        if source_module_parts and source_module_parts[-1] == "__init__":
-            source_module_parts = source_module_parts[:-1]
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    modules.add(alias.name)
-            elif isinstance(node, ast.ImportFrom):
-                base = node.module or ""
-                if node.level:
-                    package = source_module_parts[:-node.level]
-                    base_parts = base.split(".") if base else []
-                    module = ".".join([*package, *base_parts])
-                else:
-                    module = base
-
-                if module:
-                    modules.add(module)
-                for alias in node.names:
-                    if alias.name != "*" and module:
-                        modules.add(f"{module}.{alias.name}")
-
-        return modules

@@ -3,11 +3,10 @@
 import typer
 
 from localitylens.cli.commands import analyze, export
-from localitylens.config.settings import settings
 from localitylens.utils.logger import get_logger
 
 app = typer.Typer(
-    name=settings.app_name,
+    name="LocalityLens",
     help="AST-aware observability tool for coding-agent traces.",
     add_completion=False,
 )
