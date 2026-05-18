@@ -9,16 +9,19 @@ description = "AST-aware observability tool for coding-agent workflows"
 requires-python = ">=3.11"
 
 dependencies = [
-    "typer",
-    "pydantic",
+    "typer[all]",          # includes rich for terminal output
+    "pydantic>=2.0",
     "networkx",
+    "pyvis",               # required by TransitionGraphVisualizer
+    "rich",                # explicit pin — used throughout CLI even without typer[all]
     "tree-sitter",
-    "tree-sitter-python",  # <-- Add this line here
+    "tree-sitter-python",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-cov",
     "black",
     "ruff",
     "mypy",
@@ -32,3 +35,10 @@ line-length = 100
 
 [tool.ruff]
 line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true

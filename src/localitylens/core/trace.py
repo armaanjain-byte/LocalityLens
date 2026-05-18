@@ -33,20 +33,22 @@ class TraceEvent:
     """A single event within a coding-agent trace."""
 
     kind: EventKind
-    timestamp: datetime
+    timestamp: Optional[datetime]   # Optional so parsers can pass None safely
     target: str
     metadata: dict[str, Any] = field(default_factory=dict)
     duration_ms: Optional[float] = None
     sequence: int = 0
 
     def __post_init__(self) -> None:
-        # C-2: Normalise naive timestamps to UTC so arithmetic never raises TypeError
-        if self.timestamp is not None:
-            if self.timestamp.tzinfo is None:
-                object.__setattr__(
-                    self, "timestamp",
-                    self.timestamp.replace(tzinfo=timezone.utc)
-                )
+        # Normalise naive (or missing) timestamps to UTC so time arithmetic never raises TypeError.
+        # None timestamps are replaced with the epoch sentinel — parsers that have no timestamp
+        # should use _parse_ts() which already returns the epoch, but we guard here too.
+        if self.timestamp is None:
+            self.timestamp = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        elif self.timestamp.tzinfo is None:
+            # Plain assignment — TraceEvent is NOT frozen, object.__setattr__ is misleading here
+            self.timestamp = self.timestamp.replace(tzinfo=timezone.utc)
+
         if not self.target:
             raise ValueError("TraceEvent.target must not be empty")
         if self.sequence < 0:
@@ -63,15 +65,14 @@ class Trace:
     events: list[TraceEvent] = field(default_factory=list)
     agent: Optional[str] = None
 
-    # M-4: Use computed properties to ensure started_at/ended_at never go stale
     @property
     def started_at(self) -> Optional[datetime]:
-        """Dynamically fetch the timestamp of the first event."""
+        """Timestamp of the first event (computed, never stale)."""
         return self.events[0].timestamp if self.events else None
 
     @property
     def ended_at(self) -> Optional[datetime]:
-        """Dynamically fetch the timestamp of the last event."""
+        """Timestamp of the last event (computed, never stale)."""
         return self.events[-1].timestamp if self.events else None
 
     def append_event(self, event: TraceEvent) -> None:

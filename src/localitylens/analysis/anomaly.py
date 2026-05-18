@@ -1,135 +1,113 @@
+"""Behavioral anomaly detection for agent traces."""
+
+from __future__ import annotations
+
 from collections import Counter, deque
-from localitylens.core.metrics import Severity
-from localitylens.core.metrics import MetricResult
-from localitylens.core.metrics import MetricNames
+
+from localitylens.core.metrics import AnalysisReport, MetricNames, MetricResult, Severity
+from localitylens.core.trace import Trace
+
 
 class AnomalyAnalyzer:
     """
     Detect behavioral instability patterns in agent traces.
+
+    Detects three anomaly classes:
+    - hotspot_revisit: a single target accessed >= 15, 30, or 60 times
+    - oscillation:    A → B → A → B alternation pattern
+    - semantic_jump:  transition between different top-level directory roots
     """
 
-    def analyze(self, trace, report):
-
-        anomalies = []
-
-        recent = deque(maxlen=25)
-
-        revisit_counter = Counter()
-
-        previous = None
+    def analyze(self, trace: Trace, report: AnalysisReport) -> None:
+        anomalies: list[dict] = []
+        recent: deque[str] = deque(maxlen=25)
+        revisit_counter: Counter[str] = Counter()
+        previous: str | None = None
         oscillation_count = 0
 
         for idx, event in enumerate(trace.events):
-
             target = getattr(event, "target", None)
-
             if not target:
                 continue
 
-            # -----------------------------------------
+            # ------------------------------------------------------------------
             # Revisit pressure
-            # -----------------------------------------
-
+            # ------------------------------------------------------------------
             revisit_counter[target] += 1
 
             if revisit_counter[target] in (15, 30, 60):
-
                 anomalies.append({
                     "step": idx,
                     "severity": "CRITICAL",
                     "type": "hotspot_revisit",
-                    "message":
-                        f"{target} revisited "
-                        f"{revisit_counter[target]} times"
+                    "message": f"{target} revisited {revisit_counter[target]} times",
                 })
 
-            # -----------------------------------------
-            # Oscillation loops
-            # -----------------------------------------
-
+            # ------------------------------------------------------------------
+            # Oscillation loops  A → B → A → B
+            # ------------------------------------------------------------------
             recent.append(target)
 
             if len(recent) >= 4:
-
-                last_four = list(recent)[-4:]
-
-                a, b, c, d = last_four
-
+                a, b, c, d = list(recent)[-4:]
                 if a == c and b == d and a != b:
-
                     oscillation_count += 1
-
                     anomalies.append({
                         "step": idx,
-                        "severity": "WARNING",
+                        "severity": "HIGH",          # was "WARNING" — not a valid Severity
                         "type": "oscillation",
-                        "message":
-                            f"Oscillation between "
-                            f"{a} <-> {b}"
+                        "message": f"Oscillation between {a} <-> {b}",
                     })
 
-            # -----------------------------------------
-            # Semantic jump bursts
-            # -----------------------------------------
-
+            # ------------------------------------------------------------------
+            # Semantic jump bursts (different top-level directory)
+            # ------------------------------------------------------------------
             if previous and previous != target:
-
                 prev_root = previous.split("/")[0]
                 curr_root = target.split("/")[0]
-
                 if prev_root != curr_root:
-
                     anomalies.append({
                         "step": idx,
                         "severity": "LOW",
                         "type": "semantic_jump",
-                        "message":
-                            f"{previous} -> {target}"
+                        "message": f"{previous} -> {target}",
                     })
 
             previous = target
 
-        # -------------------------------------------------
-        # Aggregate Metrics
-        # -------------------------------------------------
+        # ----------------------------------------------------------------------
+        # Aggregate score
+        # ----------------------------------------------------------------------
+        criticals = sum(1 for a in anomalies if a["severity"] == "CRITICAL")
+        highs = sum(1 for a in anomalies if a["severity"] == "HIGH")
 
-        criticals = sum(
-            1 for a in anomalies
-            if a["severity"] == "CRITICAL"
-        )
-
-        warnings = sum(
-            1 for a in anomalies
-            if a["severity"] == "WARNING"
-        )
-
-        score = criticals * 3 + warnings
+        score = criticals * 3 + highs
 
         if score > 25:
             severity = Severity.CRITICAL
-
         elif score > 10:
-            severity = Severity.WARNING
-
+            severity = Severity.HIGH      # was Severity.WARNING — does not exist
+        elif score > 0:
+            severity = Severity.MEDIUM
         else:
             severity = Severity.OK
 
         report.metrics.append(
-    MetricResult(
-        name=MetricNames.BEHAVIORAL_ANOMALIES,
-        value=float(score),
-        severity=severity,
-        details=(
-            f"{len(anomalies)} anomalies detected "
-            f"({criticals} critical, "
-            f"{warnings} warning)"
-        ),
-        extra={
-            "critical_count": criticals,
-            "warning_count": warnings,
-            "anomaly_count": len(anomalies),
-        },
-    )
-)
-        # Store full anomaly timeline
+            MetricResult(
+                name=MetricNames.BEHAVIORAL_ANOMALIES,
+                value=float(score),
+                severity=severity,
+                details=(
+                    f"{len(anomalies)} anomalies detected "
+                    f"({criticals} critical, {highs} high)"
+                ),
+                extra={
+                    "critical_count": criticals,
+                    "high_count": highs,
+                    "anomaly_count": len(anomalies),
+                },
+            )
+        )
+
+        # Persist full anomaly timeline onto the report (declared field in AnalysisReport)
         report.anomalies = anomalies

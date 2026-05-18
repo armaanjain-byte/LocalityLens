@@ -1,9 +1,11 @@
 """Locality analysis: measures how focused the agent's file access is."""
 
 from __future__ import annotations
+
 from localitylens.config.settings import settings
-from localitylens.core.metrics import AnalysisReport, MetricResult, Severity
+from localitylens.core.metrics import AnalysisReport, MetricNames, MetricResult, Severity
 from localitylens.core.semantic_map import SemanticMap
+from localitylens.core.trace import Trace
 
 
 class LocalityAnalyzer:
@@ -12,20 +14,17 @@ class LocalityAnalyzer:
     Locality measures how often the agent stays within the same file or a
     small neighbourhood of files in a sliding window.  A low score means the
     agent is constantly jumping across unrelated files.
+
+    Requires SemanticMapper to have called register_touch() for each event
+    so that smap.touch_sequence() returns a populated list.
     """
 
-    def analyze(self, smap: SemanticMap, report: AnalysisReport) -> None:
-        """Append locality metrics to *report*.
-
-        Args:
-            smap: Semantic map built from the trace.
-            report: Report to append metrics to (mutated in place).
-        """
+    def analyze(self, trace: Trace, smap: SemanticMap, report: AnalysisReport) -> None:
         sequence = smap.touch_sequence()
         if len(sequence) < 2:
             report.metrics.append(
                 MetricResult(
-                    name="locality_score",
+                    name=MetricNames.LOCALITY_SCORE,
                     value=1.0,
                     severity=Severity.OK,
                     details="Not enough events to compute locality.",
@@ -48,7 +47,7 @@ class LocalityAnalyzer:
 
         report.metrics.append(
             MetricResult(
-                name="locality_score",
+                name=MetricNames.LOCALITY_SCORE,
                 value=round(score, 4),
                 severity=severity,
                 details=(

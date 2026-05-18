@@ -1,16 +1,23 @@
 """Churn analysis engine with drift-corrected boundary limits."""
 
 from __future__ import annotations
+
 from localitylens.config.settings import settings
-from localitylens.core.metrics import AnalysisReport, MetricResult, Severity
+from localitylens.core.metrics import AnalysisReport, MetricNames, MetricResult, Severity
+from localitylens.core.semantic_map import SemanticMap
 from localitylens.core.trace import EventKind, Trace
-from localitylens.core.metrics import MetricNames
 
 
 class ChurnAnalyzer:
-    """Measure write churn in a trace."""
+    """Measure write churn in a trace.
 
-    def analyze(self, trace: Trace, report: AnalysisReport) -> None:
+    churn_ratio = writes / (reads + writes)
+
+    A high ratio indicates the agent is spending a disproportionate amount of
+    its file I/O budget on writes rather than reads.
+    """
+
+    def analyze(self, trace: Trace, smap: SemanticMap, report: AnalysisReport) -> None:
         reads = sum(1 for e in trace.events if e.kind is EventKind.FILE_READ)
         writes = sum(1 for e in trace.events if e.kind is EventKind.FILE_WRITE)
         total = reads + writes
@@ -31,8 +38,8 @@ class ChurnAnalyzer:
     @staticmethod
     def _classify(ratio: float) -> Severity:
         limit = settings.thresholds.churn_ratio_limit
-        
-        # M-5: Round threshold limits explicitly to eliminate float representation drifts
+
+        # Round to eliminate float-representation drift at boundaries
         t_ok = round(limit * 0.5, 10)
         t_low = round(limit, 10)
         t_medium = round(limit * 1.5, 10)

@@ -1,7 +1,11 @@
-"""Application-wide configuration via pydantic-settings with upward traversal loading."""
+"""Application-wide configuration via pydantic with upward TOML traversal loading."""
+
+from __future__ import annotations
 
 import tomllib
 from pathlib import Path
+
+import pydantic
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -28,9 +32,14 @@ class Settings(BaseModel):
 
     @classmethod
     def load(cls, config_path: Path | None = None) -> "Settings":
-        """Load settings; searches upward from the current working directory to find config files."""
+        """Load settings; searches upward from CWD for a localitylens.toml file.
+
+        Raises:
+            ValueError: When a config file is found but contains invalid TOML
+                        or fails pydantic validation.  This surfaces
+                        configuration mistakes instead of silently ignoring them.
+        """
         if config_path is None:
-            # Finding 4: Dynamically locate the nearest localitylens.toml upwards from active directory
             cwd = Path.cwd()
             for parent in [cwd, *cwd.parents]:
                 candidate = parent / "localitylens.toml"
@@ -44,9 +53,15 @@ class Settings(BaseModel):
         try:
             with config_path.open("rb") as f:
                 data = tomllib.load(f)
+        except tomllib.TOMLDecodeError as exc:
+            raise ValueError(f"Invalid TOML in {config_path}: {exc}") from exc
+
+        try:
             return cls(**data)
-        except Exception:
-            return cls()
+        except pydantic.ValidationError as exc:
+            raise ValueError(
+                f"Invalid settings in {config_path}:\n{exc}"
+            ) from exc
 
 
 # Singleton instance used throughout the application.

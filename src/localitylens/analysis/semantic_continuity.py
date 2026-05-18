@@ -1,19 +1,26 @@
-from localitylens.core.metrics import (
-    AnalysisReport,
-    MetricResult,
-    Severity,
-    MetricNames,
-)
+"""Semantic continuity analysis: measures whether transitions stay inside dependency neighborhoods."""
+
+from __future__ import annotations
+
+from localitylens.core.metrics import AnalysisReport, MetricNames, MetricResult, Severity
 from localitylens.core.semantic_map import SemanticMap
+from localitylens.core.trace import Trace
 
 
 class SemanticContinuityAnalyzer:
     """
-    Measures whether consecutive transitions stay
-    inside semantically related dependency neighborhoods.
+    Measure the fraction of consecutive transitions that stay inside
+    semantically related dependency neighbourhoods.
+
+    A transition src → dst is *coherent* when dst appears in src's import set
+    OR src's reverse-import set (populated correctly by SemanticMapper.build()
+    via add_import()).
+
+    High score → focused, coherent workflow.
+    Low score  → agent is jumping between unrelated files.
     """
 
-    def analyze(self, smap: SemanticMap, report: AnalysisReport) -> None:
+    def analyze(self, trace: Trace, smap: SemanticMap, report: AnalysisReport) -> None:
         transitions = smap.transitions
 
         if not transitions:
@@ -28,22 +35,19 @@ class SemanticContinuityAnalyzer:
             )
             return
 
-        coherent = 0
-
-        for src, dst in transitions:
-            imports = smap.imports.get(src, set())
-            reverse = smap.reverse_imports.get(src, set())
-
-            if dst in imports or dst in reverse:
-                coherent += 1
+        coherent = sum(
+            1
+            for src, dst in transitions
+            if dst in smap.imports.get(src, set())
+            or dst in smap.reverse_imports.get(src, set())
+        )
 
         score = coherent / len(transitions)
-
         severity = self._classify(score)
 
         report.metrics.append(
             MetricResult(
-                name="semantic_continuity",
+                name=MetricNames.SEMANTIC_CONTINUITY,
                 value=round(score, 4),
                 severity=severity,
                 details=(
@@ -61,14 +65,10 @@ class SemanticContinuityAnalyzer:
     def _classify(score: float) -> Severity:
         if score >= 0.80:
             return Severity.OK
-
         if score >= 0.60:
             return Severity.LOW
-
         if score >= 0.40:
             return Severity.MEDIUM
-
         if score >= 0.20:
             return Severity.HIGH
-
         return Severity.CRITICAL

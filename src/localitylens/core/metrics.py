@@ -17,26 +17,33 @@ class Severity(str, Enum):
     CRITICAL = "critical"
 
 
-# M-1: Pre-computed rank mapping for O(1) weight comparisons
+# Pre-computed rank mapping for O(1) weight comparisons
 _SEVERITY_RANK: dict[Severity, int] = {s: i for i, s in enumerate(Severity)}
+
 
 class MetricNames:
     BEHAVIORAL_ANOMALIES = "behavioral_anomalies"
     CHURN_RATIO = "churn_ratio"
     CONTEXT_ENTROPY = "context_entropy"
     DEPENDENCY_JUMP_RADIUS = "dependency_jump_radius"
+    LOCALITY_SCORE = "locality_score"                   # was missing — LocalityAnalyzer uses this
     OSCILLATION_THRASHING = "oscillation_thrashing"
     SEMANTIC_CONTINUITY = "semantic_continuity"
     TRANSITION_CONCENTRATION = "transition_concentration"
     WASTE_GAP_COUNT = "waste_gap_count"
 
-class SeverityThresholds:
 
+class SeverityThresholds:
+    # TransitionConcentration: low dominant_ratio = fragmented = bad.
+    # Thresholds are LOWER bounds below which we escalate severity.
+    # (ratio >= 0.40 means one path dominates heavily → focused, OK/LOW)
+    # (ratio <  0.05 means perfectly uniform random walk → CRITICAL)
     TRANSITION_CONCENTRATION = {
-        "low": 0.05,
-        "medium": 0.10,
-        "high": 0.20,
-        "critical": 0.35,
+        "ok_min": 0.40,      # ratio >= 0.40 → OK (one clear dominant path)
+        "low_min": 0.20,     # ratio >= 0.20 → LOW
+        "medium_min": 0.10,  # ratio >= 0.10 → MEDIUM
+        "high_min": 0.05,    # ratio >= 0.05 → HIGH
+        # below 0.05          → CRITICAL (completely uniform random jumping)
     }
 
     SEMANTIC_CONTINUITY = {
@@ -61,8 +68,6 @@ class SeverityThresholds:
     }
 
 
-
-
 @dataclass
 class MetricResult:
     """A single named metric computed over a trace."""
@@ -81,12 +86,13 @@ class AnalysisReport:
     trace_id: str
     metrics: list[MetricResult] = field(default_factory=list)
     summary: str = ""
-    
+    anomalies: list[dict] = field(default_factory=list)   # was set as dynamic attr by AnomalyAnalyzer
+
     def sort_metrics(self) -> None:
         self.metrics.sort(key=lambda m: m.name)
 
     def worst_severity(self) -> Severity:
-        """Return the highest Severity across all metrics in linear O(N) time."""
+        """Return the highest Severity across all metrics in O(N) time."""
         if not self.metrics:
             return Severity.OK
         return max(self.metrics, key=lambda m: _SEVERITY_RANK[m.severity]).severity

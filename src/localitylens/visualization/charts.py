@@ -15,25 +15,24 @@ _COLOUR: dict[Severity, str] = {
 }
 _RESET = "\033[0m"
 
+# Severity badge labels used in Markdown output
+_SEVERITY_BADGE: dict[Severity, str] = {
+    Severity.OK: "✅ `OK`",
+    Severity.LOW: "🟡 `LOW`",
+    Severity.MEDIUM: "🟠 `MEDIUM`",
+    Severity.HIGH: "🔴 `HIGH`",
+    Severity.CRITICAL: "🚨 `CRITICAL`",
+}
+
 
 def _colour(severity: Severity, text: str) -> str:
     return f"{_COLOUR[severity]}{text}{_RESET}"
 
 
 class TextReportVisualizer(BaseVisualizer):
-    """Render an :class:`~localitylens.core.metrics.AnalysisReport` as
-    a human-readable plain-text table for terminal display.
-    """
+    """Render an AnalysisReport as a human-readable plain-text table for terminal display."""
 
     def render(self, report: AnalysisReport) -> str:
-        """Render *report* as a coloured text table.
-
-        Args:
-            report: Analysis report to render.
-
-        Returns:
-            Multi-line string ready for :func:`print`.
-        """
         lines: list[str] = [
             f"{'─' * 60}",
             f"  LocalityLens Report — trace: {report.trace_id}",
@@ -58,49 +57,45 @@ class TextReportVisualizer(BaseVisualizer):
     def _format_metric(m: MetricResult) -> str:
         badge = _colour(m.severity, f"[{m.severity.value.upper():8}]")
         return (
-        f"  {badge} "
-        f"{m.name:<26} "
-        f"{m.value:>10.4f}  "
-        f"{m.details}"
+            f"  {badge} "
+            f"{m.name:<26} "
+            f"{m.value:>10.4f}  "
+            f"{m.details}"
         )
-    
+
+
 class MarkdownReportVisualizer(BaseVisualizer):
-    """Render an :class:`~localitylens.core.metrics.AnalysisReport` as
-    a professional, structured Markdown document file.
-    """
+    """Render an AnalysisReport as a structured Markdown document."""
 
     def render(self, report: AnalysisReport) -> str:
-        """Render *report* as a structured Markdown file string."""
         worst = report.worst_severity()
-        
+
         lines: list[str] = [
-            f"# LocalityLens Audit Report",
-            f"",
+            "# LocalityLens Audit Report",
+            "",
             f"**Trace ID:** `{report.trace_id}`  ",
             f"**Global Verdict:** `{worst.value.upper()}`",
-            f"",
-            f"## Summary Analysis Metrics",
-            f"",
-            f"| Status | Metric Name | Core Value | Diagnostic Analysis Details |",
-            f"| :--- | :--- | :---: | :--- |",
+            "",
+            "## Summary Analysis Metrics",
+            "",
+            "| Status | Metric Name | Core Value | Diagnostic Analysis Details |",
+            "| :--- | :--- | :---: | :--- |",
         ]
 
         for m in report.metrics:
-            
+            badge = _SEVERITY_BADGE[m.severity]
             lines.append(
-            f"| `{m.severity.value.upper()}` "
-            f"| **{m.name}** "
-            f"| `{m.value:.4f}` "
-            f"| {m.details} |"
+                f"| {badge} "
+                f"| **{m.name}** "
+                f"| `{m.value:.4f}` "
+                f"| {m.details} |"
             )
 
         if report.summary:
             lines.extend([
-                f"",
-                f"## Executive Summary Verdict",
-                f"> {report.summary}"
+                "",
+                "## Executive Summary Verdict",
+                f"> {report.summary}",
             ])
 
         return "\n".join(lines)
-
-    

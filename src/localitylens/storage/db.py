@@ -1,4 +1,4 @@
-"""SQLite-backed storage for persisting analysis reports with explicit descriptor management and write-locking."""
+"""SQLite-backed storage for persisting analysis reports."""
 
 from __future__ import annotations
 
@@ -19,17 +19,17 @@ log = get_logger(__name__)
 class ReportStore:
     """Persist and retrieve AnalysisReport objects using a local SQLite database."""
 
-    # Finding 2: Class-level lock ensures absolute multi-threaded synchronization safety
-    _lock: threading.Lock = threading.Lock()
+    # Write lock only — SQLite WAL mode supports concurrent readers, so we do
+    # NOT serialize reads behind this lock (was incorrectly applied to reads before).
+    _write_lock: threading.Lock = threading.Lock()
 
     def __init__(self, db_path: Path) -> None:
         self._db_path = db_path
         self._init_db()
 
-    # Finding 1: Context manager helper explicitly closing connections on teardown blocks
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:
-        """Context manager providing an isolated SQLite connection handle with guaranteed descriptor closing."""
+        """Context manager providing an isolated SQLite connection."""
         conn = sqlite3.connect(self._db_path, timeout=10.0, check_same_thread=False)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
@@ -41,12 +41,11 @@ class ReportStore:
             conn.rollback()
             raise
         finally:
-            conn.close()  # <-- Finding 1: Guaranteed closure blocks descriptor leaks
+            conn.close()
 
-    # Finding 3: Remove confusing duplicate SQL table declarations
     def _init_db(self) -> None:
         try:
-            with self._lock:
+            with self._write_lock:
                 with self._connection() as conn:
                     conn.execute("""
                         CREATE TABLE IF NOT EXISTS reports (
@@ -71,8 +70,7 @@ class ReportStore:
             ) from exc
 
         try:
-            # Finding 2: Explicit write-locking prevents concurrent WAL operational contention failures
-            with self._lock:
+            with self._write_lock:
                 with self._connection() as conn:
                     conn.execute("""
                         INSERT INTO reports (trace_id, summary, metrics, stored_at)
@@ -83,16 +81,17 @@ class ReportStore:
                     """, (report.trace_id, report.summary, metrics_json))
         except Exception as exc:
             raise StorageError(f"Failed to save report {report.trace_id}: {exc}") from exc
+
         log.debug("Saved report for trace %s", report.trace_id)
 
     def load(self, trace_id: str) -> AnalysisReport | None:
+        """Load a report by trace ID. Does NOT acquire the write lock (readers are concurrent-safe)."""
         try:
-            with self._lock:
-                with self._connection() as conn:
-                    row = conn.execute(
-                        "SELECT trace_id, summary, metrics FROM reports WHERE trace_id = ?",
-                        (trace_id,),
-                    ).fetchone()
+            with self._connection() as conn:
+                row = conn.execute(
+                    "SELECT trace_id, summary, metrics FROM reports WHERE trace_id = ?",
+                    (trace_id,),
+                ).fetchone()
         except Exception as exc:
             raise StorageError(f"Failed to load report {trace_id}: {exc}") from exc
 
@@ -110,10 +109,12 @@ class ReportStore:
         return AnalysisReport(trace_id=row[0], summary=row[1], metrics=metrics)
 
     def list_ids(self) -> list[str]:
+        """List all stored trace IDs ordered by insertion time. Does NOT acquire the write lock."""
         try:
-            with self._lock:
-                with self._connection() as conn:
-                    rows = conn.execute("SELECT trace_id FROM reports ORDER BY stored_at").fetchall()
+            with self._connection() as conn:
+                rows = conn.execute(
+                    "SELECT trace_id FROM reports ORDER BY stored_at"
+                ).fetchall()
         except Exception as exc:
             raise StorageError(f"Failed to list reports: {exc}") from exc
         return [r[0] for r in rows]
@@ -127,13 +128,12 @@ class ReportStore:
                 return str(obj)
             return obj
 
-        safe_extra = {k: _json_safe(v) for k, v in m.extra.items()}
         return {
             "name": m.name,
             "value": m.value,
             "severity": m.severity.value,
             "details": m.details,
-            "extra": safe_extra,
+            "extra": {k: _json_safe(v) for k, v in m.extra.items()},
         }
 
     @staticmethod
