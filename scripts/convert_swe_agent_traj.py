@@ -102,32 +102,18 @@ def extract_event(command: str, state: SessionState):
                 "target": target,
             }
 
-    if command.startswith("search_file "):
-       return {
-    "event_type": "search",
-    "target": "search_operation",
-    "metadata": {
-        "query": command,
-    },
-}
-
-    if command.startswith("search_dir "):
+    if (
+        command.startswith("search_file ")
+        or command.startswith("search_dir ")
+        or command.startswith("find_file ")
+    ):
         return {
-    "event_type": "search",
-    "target": "search_operation",
-    "metadata": {
-        "query": command,
-    },
-}
-
-    if command.startswith("find_file "):
-        return {
-    "event_type": "search",
-    "target": "search_operation",
-    "metadata": {
-        "query": command,
-    },
-}
+            "event_type": "search",
+            "target": command,
+            "metadata": {
+                "query": command,
+            },
+        }
 
     if command.startswith("submit"):
         return {
@@ -137,8 +123,8 @@ def extract_event(command: str, state: SessionState):
 
     return None
 
-
 def main():
+    random.seed(42)
     print(f"Loading parquet: {INPUT_FILE}")
 
     df = pd.read_parquet(INPUT_FILE)
@@ -156,33 +142,33 @@ def main():
 
             commands = extract_commands(text)
 
-        for command in commands:
-            event = extract_event(command,state)
+            for command in commands:
+                event = extract_event(command,state)
 
-            if not event:
-                continue
+                if not event:
+                    continue
 
-            if event["event_type"] == "file_read":
-                delta = random.randint(1, 3)
-            elif event["event_type"] == "file_write":
-                delta = random.randint(5, 15)
+                if event["event_type"] == "file_read":
+                    delta = random.randint(1, 3)
+                elif event["event_type"] == "file_write":
+                    delta = random.randint(5, 15)
 
-            elif event["event_type"] == "search":
-                delta = random.randint(2, 6)
+                elif event["event_type"] == "search":
+                    delta = random.randint(2, 6)
 
-            elif event["event_type"] == "submit":
-                delta = random.randint(1, 2)
+                elif event["event_type"] == "submit":
+                    delta = random.randint(1, 2)
 
-            else:
-                delta = random.randint(1, 4)
+                else:
+                    delta = random.randint(1, 4)
 
-            if random.random() < 0.03:
-                delta += random.randint(30, 90)
+                if random.random() < 0.03:
+                    delta += random.randint(30, 90)
 
 
-            current_time += timedelta(seconds=delta)
+                current_time += timedelta(seconds=delta)
 
-            normalized_event = {
+                normalized_event = {
                 "metadata": event.get("metadata", {}),
                 "timestamp": current_time.isoformat(),
                 "instance_id": instance_id,
@@ -190,9 +176,9 @@ def main():
                 "kind": event["event_type"],
                 "target": event["target"],
                 "role": step.get("role"),
-            }
+                }
 
-            normalized_events.append(normalized_event)
+                normalized_events.append(normalized_event)
 
     Path("data/processed").mkdir(parents=True, exist_ok=True)
 
