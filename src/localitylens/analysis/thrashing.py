@@ -42,7 +42,7 @@ class ThrashingAnalyzer:
         # Normalized rate: fraction of sliding windows that were oscillations
         rate = total / possible_windows if possible_windows > 0 else 0.0
 
-        severity = self._classify(total)
+        severity = self._classify(rate)
 
         top_pairs = ", ".join(
             f"{a}<->{b}({count})" for (a, b), count in pair_counts.most_common(5)
@@ -70,13 +70,13 @@ class ThrashingAnalyzer:
         )
 
     @staticmethod
-    def _classify(total: int) -> Severity:
-        if total <= 5:
+    def _classify(rate: float) -> Severity:
+        if rate <= 0.01:
             return Severity.OK
-        if total <= 20:
+        if rate <= 0.05:
             return Severity.LOW
-        if total <= 50:
+        if rate <= 0.15:
             return Severity.MEDIUM
-        if total <= 100:
+        if rate <= 0.30:
             return Severity.HIGH
         return Severity.CRITICAL

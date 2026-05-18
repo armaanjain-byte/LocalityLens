@@ -130,9 +130,9 @@ def main():
     df = pd.read_parquet(INPUT_FILE)
 
     normalized_events = []
-    current_time = datetime.now(timezone.utc)
+    current_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
 
-    for row_index, row in df.iterrows():
+    for row in df.to_dict("records"):
         state = SessionState()
         instance_id = row["instance_id"]
         trajectory = row["trajectory"]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter, deque
+from pathlib import PurePosixPath
 
 from localitylens.core.metrics import AnalysisReport, MetricNames, MetricResult, Severity
 from localitylens.core.semantic_map import SemanticMap
@@ -66,9 +67,9 @@ class AnomalyAnalyzer:
             # Semantic jump bursts (different top-level directory)
             # ------------------------------------------------------------------
             if previous and previous != target:
-                prev_root = previous.split("/")[0]
-                curr_root = target.split("/")[0]
-                if prev_root != curr_root:
+                prev_dir = str(PurePosixPath(previous).parent)
+                curr_dir = str(PurePosixPath(target).parent)
+                if prev_dir != curr_dir and prev_dir != "." and curr_dir != ".":
                     anomalies.append({
                         "step": idx,
                         "severity": "LOW",
@@ -85,12 +86,13 @@ class AnomalyAnalyzer:
         highs = sum(1 for a in anomalies if a["severity"] == "HIGH")
 
         score = criticals * 3 + highs
+        score_rate = score / max(1, len(trace.events))
 
-        if score > 25:
+        if score_rate > 0.25:
             severity = Severity.CRITICAL
-        elif score > 10:
+        elif score_rate > 0.10:
             severity = Severity.HIGH      # was Severity.WARNING — does not exist
-        elif score > 0:
+        elif score_rate > 0:
             severity = Severity.MEDIUM
         else:
             severity = Severity.OK
@@ -108,6 +110,8 @@ class AnomalyAnalyzer:
                     "critical_count": criticals,
                     "high_count": highs,
                     "anomaly_count": len(anomalies),
+                    "raw_score": score,
+                    "score_rate": round(score_rate, 4),
                 },
             )
         )

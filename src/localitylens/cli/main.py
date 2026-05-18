@@ -4,6 +4,7 @@ import typer
 
 from localitylens.cli.commands import analyze, export
 from localitylens.config.settings import settings
+from localitylens.utils.logger import get_logger
 
 app = typer.Typer(
     name=settings.app_name,
@@ -17,12 +18,13 @@ app.add_typer(export.app, name="export")
 
 
 @app.callback()
-def main() -> None:
+def main(verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable debug logging")) -> None:
     """
     LocalityLens: Detect semantic thrashing and context locality failures 
     in coding-agent workflows.
     """
-    pass
+    if verbose:
+        get_logger("localitylens", level="DEBUG")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from pathlib import Path
 
 from pyvis.network import Network
 
@@ -12,7 +13,7 @@ from localitylens.core.trace import Trace
 class TransitionGraphVisualizer:
     """Render an interactive HTML transition graph from a Trace."""
 
-    def render(self, trace: Trace, output_path: str = "transition_graph.html") -> str:
+    def render(self, trace: Trace, output_path: str | Path = "transition_graph.html") -> str:
         """Build and write an interactive HTML transition graph.
 
         Args:
@@ -105,5 +106,6 @@ class TransitionGraphVisualizer:
         }
         """)
 
-        net.write_html(output_path, notebook=False)
-        return output_path
+        output = Path(output_path)
+        net.write_html(str(output), notebook=False)
+        return str(output)

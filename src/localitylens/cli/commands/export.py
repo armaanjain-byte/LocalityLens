@@ -48,6 +48,7 @@ def export_report(
             data = {
                 "trace_id": report.trace_id,
                 "summary": report.summary,
+                "anomalies": report.anomalies,
                 "metrics": [
                     {
                         "name": m.name,

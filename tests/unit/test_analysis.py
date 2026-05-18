@@ -205,6 +205,7 @@ class TestThrashingAnalyzer:
 
         assert m.value >= 1.0
         assert m.extra["oscillations"] >= 1
+        assert m.severity == Severity.CRITICAL
 
     def test_no_oscillation_when_no_pattern(self):
         """Linear progression a→b→c→d should produce zero oscillations."""
@@ -316,6 +317,37 @@ class TestWasteAnalyzer:
         assert m.value == 0.0
         assert m.severity == Severity.OK
 
+    def test_out_of_order_timestamps_are_reported(self):
+        analyzer = WasteAnalyzer()
+        report = AnalysisReport(trace_id="t")
+
+        trace = Trace(
+            trace_id="t",
+            source="test.json",
+            format=TraceFormat.GENERIC_JSON,
+            events=[
+                TraceEvent(
+                    kind=EventKind.TOOL_CALL,
+                    timestamp=_T0 + timedelta(seconds=30),
+                    target="bash",
+                    sequence=0,
+                ),
+                TraceEvent(
+                    kind=EventKind.TOOL_CALL,
+                    timestamp=_T0,
+                    target="bash",
+                    sequence=1,
+                ),
+            ],
+        )
+
+        analyzer.analyze(trace, _empty_smap(), report)
+
+        m = report.by_name(MetricNames.WASTE_GAP_COUNT)[0]
+
+        assert m.value == 0.0
+        assert m.extra["out_of_order_events"] == 1
+
     def test_single_event_returns_ok(self):
         analyzer = WasteAnalyzer()
 
@@ -364,6 +396,15 @@ class TestAnomalyAnalyzer:
 
         assert m.value == 0.0
         assert m.severity == Severity.OK
+
+    def test_semantic_jump_ignores_absolute_path_root(self):
+        analyzer = AnomalyAnalyzer()
+        report = AnalysisReport(trace_id="t")
+        trace = _make_trace(["/repo/src/a.py", "/repo/tests/test_a.py"])
+
+        analyzer.analyze(trace, _empty_smap(), report)
+
+        assert any(a["type"] == "semantic_jump" for a in report.anomalies)
 
     def test_severity_never_crashes(self):
         """High oscillation count must not raise AttributeError."""

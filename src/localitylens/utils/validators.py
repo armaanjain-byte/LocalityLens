@@ -2,9 +2,11 @@
 
 from pathlib import Path
 
+from localitylens.core.exceptions import ParseError
+
 
 def validate_file_exists(path: Path) -> Path:
-    """Raise :class:`FileNotFoundError` when *path* does not exist.
+    """Raise :class:`ParseError` when *path* does not exist.
 
     Args:
         path: Filesystem path to check.
@@ -13,10 +15,10 @@ def validate_file_exists(path: Path) -> Path:
         The same *path* if valid.
 
     Raises:
-        FileNotFoundError: When the path does not point to an existing file.
+        ParseError: When the path does not point to an existing file.
     """
     if not path.is_file():
-        raise FileNotFoundError(f"File not found: {path}")
+        raise ParseError(f"File not found: {path}")
     return path
 
 

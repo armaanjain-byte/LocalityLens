@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections import deque
-
 from localitylens.core.metrics import AnalysisReport, MetricNames, MetricResult, Severity
 from localitylens.core.semantic_map import SemanticMap
 from localitylens.core.trace import Trace
@@ -35,13 +33,16 @@ class DependencyJumpAnalyzer:
             )
             return
 
-        graph = self._dependency_graph(smap)
+        graph = smap.dependency_graph()
         disconnected_penalty = max(2, len(graph))
         distances: list[int] = []
+        distances_by_source: dict[str, dict[str, int]] = {}
         disconnected = 0
 
         for src, dst in transitions:
-            distance = self._shortest_path(graph, src, dst)
+            if src not in distances_by_source:
+                distances_by_source[src] = smap.shortest_distances(graph, src)
+            distance = distances_by_source[src].get(dst)
             if distance is None:
                 disconnected += 1
                 distance = disconnected_penalty
@@ -67,34 +68,6 @@ class DependencyJumpAnalyzer:
                 },
             )
         )
-
-    @staticmethod
-    def _dependency_graph(smap: SemanticMap) -> dict[str, set[str]]:
-        graph: dict[str, set[str]] = {path: set() for path in smap.files}
-        for src, targets in smap.imports.items():
-            graph.setdefault(src, set()).update(targets)
-            for dst in targets:
-                graph.setdefault(dst, set()).add(src)
-        return graph
-
-    @staticmethod
-    def _shortest_path(graph: dict[str, set[str]], src: str, dst: str) -> int | None:
-        if src == dst:
-            return 0
-        if src not in graph or dst not in graph:
-            return None
-
-        seen = {src}
-        queue: deque[tuple[str, int]] = deque([(src, 0)])
-        while queue:
-            node, distance = queue.popleft()
-            for neighbor in graph.get(node, set()):
-                if neighbor == dst:
-                    return distance + 1
-                if neighbor not in seen:
-                    seen.add(neighbor)
-                    queue.append((neighbor, distance + 1))
-        return None
 
     @staticmethod
     def _classify(average_radius: float, disconnected_ratio: float) -> Severity:

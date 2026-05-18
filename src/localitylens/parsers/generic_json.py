@@ -25,7 +25,8 @@ class GenericJsonParser(BaseParser):
 
     def parse(self, path: Path) -> Trace:
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
         except (OSError, json.JSONDecodeError) as exc:
             raise ParseError(f"Cannot parse {path}: {exc}") from exc
 

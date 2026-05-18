@@ -11,11 +11,8 @@ requires-python = ">=3.11"
 dependencies = [
     "typer[all]",          # includes rich for terminal output
     "pydantic>=2.0",
-    "networkx",
     "pyvis",               # required by TransitionGraphVisualizer
     "rich",                # explicit pin — used throughout CLI even without typer[all]
-    "tree-sitter",
-    "tree-sitter-python",
 ]
 
 [project.optional-dependencies]

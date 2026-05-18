@@ -114,6 +114,40 @@ class TestSemanticMapper:
         assert "non_existent_file.py" in smap.files
         assert smap.files["non_existent_file.py"].symbol_names == []
 
+    def test_duplicate_sequence_is_skipped_without_crashing(self):
+        mapper = SemanticMapper()
+        trace = Trace(
+            trace_id="test",
+            source="trace.json",
+            format=TraceFormat.GENERIC_JSON,
+            events=[
+                TraceEvent(kind=EventKind.FILE_READ, timestamp=_T0, target="a.py", sequence=0),
+                TraceEvent(kind=EventKind.FILE_READ, timestamp=_T0, target="b.py", sequence=0),
+                TraceEvent(kind=EventKind.FILE_READ, timestamp=_T0, target="c.py", sequence=1),
+            ],
+        )
+
+        smap = mapper.build(trace)
+
+        assert smap.touch_sequence() == ["a.py", "c.py"]
+        assert ("b.py", "c.py") not in smap.transitions
+
+    def test_syntax_error_file_does_not_crash_mapper(self, tmp_path):
+        package = tmp_path / "pkg"
+        package.mkdir()
+        (package / "broken.py").write_text("def nope(:\n", encoding="utf-8")
+        trace = _make_trace(["pkg/broken.py"])
+        trace.source = str(tmp_path / "trace.json")
+
+        smap = SemanticMapper().build(trace)
+
+        assert "pkg/broken.py" in smap.files
+
+    def test_module_index_prefers_longer_path_on_basename_collision(self):
+        index = SemanticMapper._module_index({"src/utils.py", "tests/helpers/utils.py"})
+
+        assert index["utils"] == "tests/helpers/utils.py"
+
 
 class TestSemanticMapRegisterTouch:
     def test_register_touch_increments_count(self):

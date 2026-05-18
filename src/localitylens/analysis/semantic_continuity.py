@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections import deque
-
 from localitylens.core.metrics import AnalysisReport, MetricNames, MetricResult, Severity
 from localitylens.core.semantic_map import SemanticMap
 from localitylens.core.trace import Trace
@@ -37,9 +35,14 @@ class SemanticContinuityAnalyzer:
             )
             return
 
-        graph = self._dependency_graph(smap)
+        graph = smap.dependency_graph()
+        distances_by_source: dict[str, dict[str, int]] = {}
         coherent = sum(
-            1 for src, dst in transitions if self._within_dependency_neighborhood(graph, src, dst)
+            1
+            for src, dst in transitions
+            if self._within_dependency_neighborhood(
+                smap, graph, distances_by_source, src, dst
+            )
         )
 
         score = coherent / len(transitions)
@@ -74,17 +77,10 @@ class SemanticContinuityAnalyzer:
         return Severity.CRITICAL
 
     @staticmethod
-    def _dependency_graph(smap: SemanticMap) -> dict[str, set[str]]:
-        graph: dict[str, set[str]] = {path: set() for path in smap.files}
-        for src, targets in smap.imports.items():
-            graph.setdefault(src, set()).update(targets)
-            for dst in targets:
-                graph.setdefault(dst, set()).add(src)
-        return graph
-
-    @staticmethod
     def _within_dependency_neighborhood(
+        smap: SemanticMap,
         graph: dict[str, set[str]],
+        distances_by_source: dict[str, dict[str, int]],
         src: str,
         dst: str,
         max_hops: int = 2,
@@ -94,16 +90,7 @@ class SemanticContinuityAnalyzer:
         if src not in graph or dst not in graph:
             return False
 
-        seen = {src}
-        queue: deque[tuple[str, int]] = deque([(src, 0)])
-        while queue:
-            node, distance = queue.popleft()
-            if distance >= max_hops:
-                continue
-            for neighbor in graph.get(node, set()):
-                if neighbor == dst:
-                    return True
-                if neighbor not in seen:
-                    seen.add(neighbor)
-                    queue.append((neighbor, distance + 1))
-        return False
+        if src not in distances_by_source:
+            distances_by_source[src] = smap.shortest_distances(graph, src, max_hops=max_hops)
+        distance = distances_by_source[src].get(dst)
+        return distance is not None and distance <= max_hops

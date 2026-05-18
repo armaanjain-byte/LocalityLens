@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 
 
@@ -65,6 +65,37 @@ class SemanticMap:
     def add_neighbor(self, source: str, target: str) -> None:
         """Record non-dependency semantic adjacency for locality scoring."""
         self.neighbors[source].add(target)
+
+    def dependency_graph(self) -> dict[str, set[str]]:
+        """Return an undirected view of import relationships for graph metrics."""
+        graph: dict[str, set[str]] = {path: set() for path in self.files}
+        for src, targets in self.imports.items():
+            graph.setdefault(src, set()).update(targets)
+            for dst in targets:
+                graph.setdefault(dst, set()).add(src)
+        return graph
+
+    @staticmethod
+    def shortest_distances(
+        graph: dict[str, set[str]],
+        source: str,
+        max_hops: int | None = None,
+    ) -> dict[str, int]:
+        """Return dependency distances from one source, optionally capped."""
+        if source not in graph:
+            return {}
+
+        distances = {source: 0}
+        queue: deque[tuple[str, int]] = deque([(source, 0)])
+        while queue:
+            node, distance = queue.popleft()
+            if max_hops is not None and distance >= max_hops:
+                continue
+            for neighbor in graph.get(node, set()):
+                if neighbor not in distances:
+                    distances[neighbor] = distance + 1
+                    queue.append((neighbor, distance + 1))
+        return distances
 
     def register_touch(self, seq: int, path: str) -> None:
         """Record that event at position *seq* touched file *path*.

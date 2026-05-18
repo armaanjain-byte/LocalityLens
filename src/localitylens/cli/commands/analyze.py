@@ -56,6 +56,9 @@ ANALYZERS = [
 def analyze_file(
     trace_path: Path = typer.Argument(..., help="Path to the agent trace file"),
     db_path: Path = typer.Option(Path("localitylens.db"), help="Path to SQLite database"),
+    output_dir: Path = typer.Option(Path("."), help="Directory for generated replay/graph files"),
+    no_graph: bool = typer.Option(False, "--no-graph", help="Skip transition graph export"),
+    no_replay: bool = typer.Option(False, "--no-replay", help="Skip replay frame export"),
 ) -> None:
     """Analyze a single trace file and display the report."""
     try:
@@ -85,12 +88,15 @@ def analyze_file(
         # 6. Visualization
         console.print(TextReportVisualizer().render(report))
 
-        graph_path = TransitionGraphVisualizer().render(trace)   # separate var — do NOT shadow trace_path
-        replay_path = ReplayExporter().export(trace)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        if not no_replay:
+            replay_path = ReplayExporter().export(trace, output_dir / "replay_frames.json")
+            console.print(f"[bold cyan]Replay frames exported:[/bold cyan] {replay_path}")
 
-        console.print(f"[bold cyan]Replay frames exported:[/bold cyan] {replay_path}")
-        console.print()
-        console.print(f"[bold green]Transition graph saved:[/bold green] {graph_path}")
+        if not no_graph:
+            graph_path = TransitionGraphVisualizer().render(trace, output_dir / "transition_graph.html")
+            console.print()
+            console.print(f"[bold green]Transition graph saved:[/bold green] {graph_path}")
 
     except LocalityLensError as e:
         console.print(f"[bold red]Error:[/bold red] {e}")

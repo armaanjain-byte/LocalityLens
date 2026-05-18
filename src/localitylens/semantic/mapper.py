@@ -8,8 +8,10 @@ from pathlib import Path
 
 from localitylens.core.semantic_map import SemanticMap
 from localitylens.core.trace import Trace
+from localitylens.utils.logger import get_logger
 
 _IGNORED_TARGETS = frozenset({"session", "unknown_file", "search_operation"})
+log = get_logger(__name__)
 
 
 class SemanticMapper:
@@ -33,7 +35,11 @@ class SemanticMapper:
             if not current or current in _IGNORED_TARGETS:
                 continue
 
-            smap.register_touch(event.sequence, current)
+            try:
+                smap.register_touch(event.sequence, current)
+            except ValueError as exc:
+                log.warning("Skipping duplicate sequence %d: %s", event.sequence, exc)
+                continue
 
             if previous and previous != current:
                 smap.transitions.append((previous, current))
@@ -73,7 +79,8 @@ class SemanticMapper:
             except (OSError, SyntaxError, UnicodeDecodeError):
                 continue
 
-            smap.files[file_path].symbol_names = self._symbols(tree)
+            if file_path in smap.files:
+                smap.files[file_path].symbol_names = self._symbols(tree)
 
             for module_name in self._imported_modules(tree, file_path):
                 target = module_index.get(module_name)
@@ -107,10 +114,23 @@ class SemanticMapper:
                 continue
 
             module_name = ".".join(parts)
-            index[module_name] = file_path
-            index[parts[-1]] = file_path
+            SemanticMapper._put_module_index(index, module_name, file_path)
+            SemanticMapper._put_module_index(index, parts[-1], file_path)
 
         return index
+
+    @staticmethod
+    def _put_module_index(index: dict[str, str], module_name: str, file_path: str) -> None:
+        existing = index.get(module_name)
+        if existing is None or len(file_path) > len(existing):
+            if existing is not None:
+                log.debug(
+                    "Module name collision %r: %r vs %r (using longer path)",
+                    module_name,
+                    existing,
+                    file_path,
+                )
+            index[module_name] = file_path
 
     @staticmethod
     def _resolve_file(file_path: str, source_root: Path) -> Path | None:

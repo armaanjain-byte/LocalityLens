@@ -43,6 +43,17 @@ class ReportStore:
         finally:
             conn.close()
 
+    @contextmanager
+    def _read_connection(self) -> Iterator[sqlite3.Connection]:
+        """Context manager for read-only operations; it never commits."""
+        conn = sqlite3.connect(self._db_path, timeout=10.0, check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        try:
+            yield conn
+        finally:
+            conn.close()
+
     def _init_db(self) -> None:
         try:
             with self._write_lock:
@@ -52,9 +63,17 @@ class ReportStore:
                             trace_id  TEXT PRIMARY KEY,
                             summary   TEXT NOT NULL DEFAULT '',
                             metrics   TEXT NOT NULL DEFAULT '[]',
+                            anomalies TEXT NOT NULL DEFAULT '[]',
                             stored_at TEXT NOT NULL DEFAULT (datetime('now'))
                         )
                     """)
+                    columns = {
+                        row[1] for row in conn.execute("PRAGMA table_info(reports)").fetchall()
+                    }
+                    if "anomalies" not in columns:
+                        conn.execute(
+                            "ALTER TABLE reports ADD COLUMN anomalies TEXT NOT NULL DEFAULT '[]'"
+                        )
                     conn.execute(
                         "CREATE INDEX IF NOT EXISTS idx_reports_stored_at ON reports (stored_at)"
                     )
@@ -64,21 +83,24 @@ class ReportStore:
     def save(self, report: AnalysisReport) -> None:
         try:
             metrics_json = json.dumps([self._metric_to_dict(m) for m in report.metrics])
+            anomalies_json = json.dumps(report.anomalies, cls=_SafeEncoder)
         except (TypeError, ValueError) as exc:
             raise StorageError(
-                f"Cannot serialise metrics for report '{report.trace_id}': {exc}"
+                f"Cannot serialise report '{report.trace_id}': {exc}"
             ) from exc
 
         try:
             with self._write_lock:
                 with self._connection() as conn:
                     conn.execute("""
-                        INSERT INTO reports (trace_id, summary, metrics, stored_at)
-                        VALUES (?, ?, ?, datetime('now'))
+                        INSERT INTO reports (trace_id, summary, metrics, anomalies, stored_at)
+                        VALUES (?, ?, ?, ?, datetime('now'))
                         ON CONFLICT(trace_id) DO UPDATE SET
                             summary  = excluded.summary,
-                            metrics  = excluded.metrics
-                    """, (report.trace_id, report.summary, metrics_json))
+                            metrics  = excluded.metrics,
+                            anomalies = excluded.anomalies,
+                            stored_at = excluded.stored_at
+                    """, (report.trace_id, report.summary, metrics_json, anomalies_json))
         except Exception as exc:
             raise StorageError(f"Failed to save report {report.trace_id}: {exc}") from exc
 
@@ -87,9 +109,9 @@ class ReportStore:
     def load(self, trace_id: str) -> AnalysisReport | None:
         """Load a report by trace ID. Does NOT acquire the write lock (readers are concurrent-safe)."""
         try:
-            with self._connection() as conn:
+            with self._read_connection() as conn:
                 row = conn.execute(
-                    "SELECT trace_id, summary, metrics FROM reports WHERE trace_id = ?",
+                    "SELECT trace_id, summary, metrics, anomalies FROM reports WHERE trace_id = ?",
                     (trace_id,),
                 ).fetchone()
         except Exception as exc:
@@ -100,18 +122,19 @@ class ReportStore:
 
         try:
             raw_metrics: list[dict[str, Any]] = json.loads(row[2])
+            anomalies: list[dict[str, Any]] = json.loads(row[3])
         except json.JSONDecodeError as exc:
             raise StorageError(
-                f"Corrupt metrics JSON for trace '{trace_id}': {exc}"
+                f"Corrupt report JSON for trace '{trace_id}': {exc}"
             ) from exc
 
         metrics = [self._dict_to_metric(d) for d in raw_metrics]
-        return AnalysisReport(trace_id=row[0], summary=row[1], metrics=metrics)
+        return AnalysisReport(trace_id=row[0], summary=row[1], metrics=metrics, anomalies=anomalies)
 
     def list_ids(self) -> list[str]:
         """List all stored trace IDs ordered by insertion time. Does NOT acquire the write lock."""
         try:
-            with self._connection() as conn:
+            with self._read_connection() as conn:
                 rows = conn.execute(
                     "SELECT trace_id FROM reports ORDER BY stored_at"
                 ).fetchall()
@@ -121,19 +144,12 @@ class ReportStore:
 
     @staticmethod
     def _metric_to_dict(m: MetricResult) -> dict[str, Any]:
-        def _json_safe(obj: object) -> object:
-            if isinstance(obj, set):
-                return sorted(obj)
-            if isinstance(obj, Path):
-                return str(obj)
-            return obj
-
         return {
             "name": m.name,
             "value": m.value,
             "severity": m.severity.value,
             "details": m.details,
-            "extra": {k: _json_safe(v) for k, v in m.extra.items()},
+            "extra": json.loads(json.dumps(m.extra, cls=_SafeEncoder)),
         }
 
     @staticmethod
@@ -145,3 +161,16 @@ class ReportStore:
             details=d.get("details", ""),
             extra=dict(d.get("extra", {})),
         )
+
+
+class _SafeEncoder(json.JSONEncoder):
+    """JSON encoder for report extras that may contain convenience containers."""
+
+    def default(self, obj: object) -> object:
+        if isinstance(obj, set):
+            return sorted(obj)
+        if isinstance(obj, Path):
+            return str(obj)
+        if isinstance(obj, Severity):
+            return obj.value
+        return super().default(obj)
