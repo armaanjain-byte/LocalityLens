@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter, deque
 
 from localitylens.core.metrics import AnalysisReport, MetricNames, MetricResult, Severity
+from localitylens.core.semantic_map import SemanticMap
 from localitylens.core.trace import Trace
 
 
@@ -18,7 +19,9 @@ class AnomalyAnalyzer:
     - semantic_jump:  transition between different top-level directory roots
     """
 
-    def analyze(self, trace: Trace, report: AnalysisReport) -> None:
+    def analyze(self, trace: Trace, smap: SemanticMap, report: AnalysisReport) -> None:
+        del smap
+
         anomalies: list[dict] = []
         recent: deque[str] = deque(maxlen=25)
         revisit_counter: Counter[str] = Counter()

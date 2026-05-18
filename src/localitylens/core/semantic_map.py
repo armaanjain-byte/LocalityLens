@@ -41,6 +41,9 @@ class SemanticMap:
     reverse_imports: dict[str, set[str]] = field(
         default_factory=lambda: defaultdict(set)
     )
+    neighbors: dict[str, set[str]] = field(
+        default_factory=lambda: defaultdict(set)
+    )
 
     # Internal memoization cache — not part of the public interface
     _cached_sequence: list[str] | None = field(
@@ -58,6 +61,10 @@ class SemanticMap:
         """
         self.imports[source].add(target)
         self.reverse_imports[target].add(source)
+
+    def add_neighbor(self, source: str, target: str) -> None:
+        """Record non-dependency semantic adjacency for locality scoring."""
+        self.neighbors[source].add(target)
 
     def register_touch(self, seq: int, path: str) -> None:
         """Record that event at position *seq* touched file *path*.

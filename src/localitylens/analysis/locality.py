@@ -38,7 +38,13 @@ class LocalityAnalyzer:
 
         for i in range(len(sequence) - 1):
             context = set(sequence[max(0, i - window) : i + 1])
-            if sequence[i + 1] in context:
+            semantic_context = set(context)
+            for path in context:
+                semantic_context.update(smap.imports.get(path, set()))
+                semantic_context.update(smap.reverse_imports.get(path, set()))
+                semantic_context.update(smap.neighbors.get(path, set()))
+
+            if sequence[i + 1] in semantic_context:
                 local_hits += 1
             total_windows += 1
 
@@ -52,7 +58,7 @@ class LocalityAnalyzer:
                 severity=severity,
                 details=(
                     f"{local_hits}/{total_windows} transitions stayed within a "
-                    f"{window}-event context window."
+                    f"{window}-event semantic context window."
                 ),
             )
         )

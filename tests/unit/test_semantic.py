@@ -58,24 +58,30 @@ class TestSemanticMapper:
         assert ("a.py", "a.py") not in smap.transitions
         assert ("a.py", "b.py") in smap.transitions
 
-    def test_same_directory_files_are_adjacent(self):
-        """Files in the same directory must appear in each other's imports."""
+    def test_same_directory_files_are_neighbors_not_imports(self):
+        """Same-directory adjacency must not be mislabeled as imports."""
         mapper = SemanticMapper()
         trace = _make_trace(["src/a.py", "src/b.py"])
         smap = mapper.build(trace)
-        assert "src/b.py" in smap.imports.get("src/a.py", set())
-        assert "src/a.py" in smap.imports.get("src/b.py", set())
+        assert "src/b.py" in smap.neighbors.get("src/a.py", set())
+        assert "src/a.py" in smap.neighbors.get("src/b.py", set())
+        assert "src/b.py" not in smap.imports.get("src/a.py", set())
+        assert "src/a.py" not in smap.imports.get("src/b.py", set())
 
-    def test_add_import_populates_reverse_imports(self):
-        """
-        mapper.build() must use add_import() so reverse_imports is populated.
-        SemanticContinuityAnalyzer and DependencyJumpAnalyzer both depend on this.
-        """
+    def test_ast_imports_populate_reverse_imports(self, tmp_path):
         mapper = SemanticMapper()
-        trace = _make_trace(["src/a.py", "src/b.py"])
+        package = tmp_path / "pkg"
+        package.mkdir()
+        (package / "a.py").write_text("from pkg import b\n\nclass A:\n    pass\n", encoding="utf-8")
+        (package / "b.py").write_text("def helper():\n    return 1\n", encoding="utf-8")
+        trace = _make_trace(["pkg/a.py", "pkg/b.py"])
+        trace.source = str(tmp_path / "trace.json")
+
         smap = mapper.build(trace)
-        # reverse_imports["src/b.py"] must contain "src/a.py"
-        assert "src/a.py" in smap.reverse_imports.get("src/b.py", set())
+
+        assert "pkg/b.py" in smap.imports.get("pkg/a.py", set())
+        assert "pkg/a.py" in smap.reverse_imports.get("pkg/b.py", set())
+        assert smap.files["pkg/a.py"].symbol_names == ["A"]
 
     def test_ignored_targets_excluded(self):
         """session, unknown_file, search_operation must not appear in transitions or files."""

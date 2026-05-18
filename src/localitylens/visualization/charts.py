@@ -5,23 +5,23 @@ from __future__ import annotations
 from localitylens.core.metrics import AnalysisReport, MetricResult, Severity
 from localitylens.visualization.base import BaseVisualizer
 
-# ANSI colour codes (degrade gracefully on non-colour terminals).
+# ANSI colour codes degrade gracefully on non-colour terminals.
 _COLOUR: dict[Severity, str] = {
-    Severity.OK: "\033[32m",       # green
-    Severity.LOW: "\033[36m",      # cyan
-    Severity.MEDIUM: "\033[33m",   # yellow
-    Severity.HIGH: "\033[31m",     # red
-    Severity.CRITICAL: "\033[35m", # magenta
+    Severity.OK: "\033[32m",
+    Severity.LOW: "\033[36m",
+    Severity.MEDIUM: "\033[33m",
+    Severity.HIGH: "\033[31m",
+    Severity.CRITICAL: "\033[35m",
 }
 _RESET = "\033[0m"
 
-# Severity badge labels used in Markdown output
+# Keep labels ASCII-safe because reports may be printed from Windows CP-1252 terminals.
 _SEVERITY_BADGE: dict[Severity, str] = {
-    Severity.OK: "✅ `OK`",
-    Severity.LOW: "🟡 `LOW`",
-    Severity.MEDIUM: "🟠 `MEDIUM`",
-    Severity.HIGH: "🔴 `HIGH`",
-    Severity.CRITICAL: "🚨 `CRITICAL`",
+    Severity.OK: "`OK`",
+    Severity.LOW: "`LOW`",
+    Severity.MEDIUM: "`MEDIUM`",
+    Severity.HIGH: "`HIGH`",
+    Severity.CRITICAL: "`CRITICAL`",
 }
 
 
@@ -29,14 +29,25 @@ def _colour(severity: Severity, text: str) -> str:
     return f"{_COLOUR[severity]}{text}{_RESET}"
 
 
+def _ascii_safe(text: str) -> str:
+    """Return text that can be printed by legacy Windows console encodings."""
+    return (
+        text.replace("≥", ">=")
+        .replace("≤", "<=")
+        .encode("ascii", errors="replace")
+        .decode("ascii")
+    )
+
+
 class TextReportVisualizer(BaseVisualizer):
-    """Render an AnalysisReport as a human-readable plain-text table for terminal display."""
+    """Render an AnalysisReport as a human-readable plain-text table."""
 
     def render(self, report: AnalysisReport) -> str:
+        rule = "-" * 60
         lines: list[str] = [
-            f"{'─' * 60}",
-            f"  LocalityLens Report — trace: {report.trace_id}",
-            f"{'─' * 60}",
+            rule,
+            f"  LocalityLens Report - trace: {_ascii_safe(report.trace_id)}",
+            rule,
         ]
 
         for m in report.metrics:
@@ -44,12 +55,12 @@ class TextReportVisualizer(BaseVisualizer):
 
         worst = report.worst_severity()
         lines += [
-            f"{'─' * 60}",
+            rule,
             f"  Overall Severity: {_colour(worst, worst.value.upper())}",
-            f"{'─' * 60}",
+            rule,
         ]
         if report.summary:
-            lines.append(f"  {report.summary}")
+            lines.append(f"  {_ascii_safe(report.summary)}")
 
         return "\n".join(lines)
 
@@ -60,7 +71,7 @@ class TextReportVisualizer(BaseVisualizer):
             f"  {badge} "
             f"{m.name:<26} "
             f"{m.value:>10.4f}  "
-            f"{m.details}"
+            f"{_ascii_safe(m.details)}"
         )
 
 
@@ -92,10 +103,12 @@ class MarkdownReportVisualizer(BaseVisualizer):
             )
 
         if report.summary:
-            lines.extend([
-                "",
-                "## Executive Summary Verdict",
-                f"> {report.summary}",
-            ])
+            lines.extend(
+                [
+                    "",
+                    "## Executive Summary Verdict",
+                    f"> {report.summary}",
+                ]
+            )
 
         return "\n".join(lines)

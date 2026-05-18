@@ -130,10 +130,10 @@ def main():
     df = pd.read_parquet(INPUT_FILE)
 
     normalized_events = []
-    state = SessionState()
     current_time = datetime.now(timezone.utc)
 
     for row_index, row in df.iterrows():
+        state = SessionState()
         instance_id = row["instance_id"]
         trajectory = row["trajectory"]
 
@@ -143,7 +143,7 @@ def main():
             commands = extract_commands(text)
 
             for command in commands:
-                event = extract_event(command,state)
+                event = extract_event(command, state)
 
                 if not event:
                     continue
@@ -169,13 +169,13 @@ def main():
                 current_time += timedelta(seconds=delta)
 
                 normalized_event = {
-                "metadata": event.get("metadata", {}),
-                "timestamp": current_time.isoformat(),
-                "instance_id": instance_id,
-                "source": "swe-agent",
-                "kind": event["event_type"],
-                "target": event["target"],
-                "role": step.get("role"),
+                    "metadata": event.get("metadata", {}),
+                    "timestamp": current_time.isoformat(),
+                    "instance_id": instance_id,
+                    "source": "swe-agent",
+                    "kind": event["event_type"],
+                    "target": event["target"],
+                    "role": step.get("role"),
                 }
 
                 normalized_events.append(normalized_event)

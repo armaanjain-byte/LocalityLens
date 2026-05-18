@@ -502,7 +502,7 @@ class TestSemanticContinuityAnalyzer:
 # ---------------------------------------------------------------------------
 
 class TestDependencyJumpAnalyzer:
-    def test_all_distant_jumps_score_one(self):
+    def test_all_distant_jumps_are_critical(self):
         """Transitions between unrelated files."""
         analyzer = DependencyJumpAnalyzer()
 
@@ -522,8 +522,26 @@ class TestDependencyJumpAnalyzer:
 
         m = report.by_name(MetricNames.DEPENDENCY_JUMP_RADIUS)[0]
 
-        assert m.value == pytest.approx(1.0)
+        assert m.value == pytest.approx(2.0)
         assert m.severity == Severity.CRITICAL
+
+    def test_direct_dependency_radius_is_one(self):
+        analyzer = DependencyJumpAnalyzer()
+        report = AnalysisReport(trace_id="t")
+        smap = SemanticMap(trace_id="t")
+        smap.register_touch(0, "src/a.py")
+        smap.register_touch(1, "src/b.py")
+        smap.add_import("src/a.py", "src/b.py")
+        smap.transitions = [("src/a.py", "src/b.py")]
+
+        trace = Trace(trace_id="t", source="", format=TraceFormat.GENERIC_JSON)
+
+        analyzer.analyze(trace, smap, report)
+
+        m = report.by_name(MetricNames.DEPENDENCY_JUMP_RADIUS)[0]
+
+        assert m.value == pytest.approx(1.0)
+        assert m.severity == Severity.OK
 
     def test_no_transitions_returns_ok(self):
         analyzer = DependencyJumpAnalyzer()

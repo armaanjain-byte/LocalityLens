@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from localitylens.core.metrics import AnalysisReport, MetricNames, MetricResult, Severity
+from localitylens.core.metrics import AnalysisReport, MetricResult, Severity
 from localitylens.visualization.charts import MarkdownReportVisualizer, TextReportVisualizer
 
 
@@ -35,10 +33,10 @@ class TestMarkdownReportVisualizer:
         assert "**Trace ID:** `viz_test_trace`" in output
 
     def test_severity_badge_high(self):
-        """HIGH severity must render the 🔴 badge defined in _SEVERITY_BADGE."""
+        """HIGH severity must render an ASCII-safe badge."""
         visualizer = MarkdownReportVisualizer()
         output = visualizer.render(self._make_report())
-        assert "🔴 `HIGH`" in output
+        assert "`HIGH`" in output
 
     def test_metric_name_present(self):
         visualizer = MarkdownReportVisualizer()
@@ -90,9 +88,7 @@ class TestTextReportVisualizer:
     def test_overall_severity_line(self):
         visualizer = TextReportVisualizer()
         report = AnalysisReport(trace_id="t")
-        report.metrics.append(
-            MetricResult(name="m", value=0.5, severity=Severity.HIGH)
-        )
+        report.metrics.append(MetricResult(name="m", value=0.5, severity=Severity.HIGH))
         output = visualizer.render(report)
         assert "Overall Severity" in output
         assert "HIGH" in output
