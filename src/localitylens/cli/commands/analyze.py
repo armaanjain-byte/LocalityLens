@@ -7,22 +7,13 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from localitylens.analysis.anomaly import AnomalyAnalyzer
-from localitylens.analysis.churn import ChurnAnalyzer
-from localitylens.analysis.context_entropy import ContextEntropyAnalyzer
-from localitylens.analysis.dependency_jump import DependencyJumpAnalyzer
-from localitylens.analysis.locality import LocalityAnalyzer
-from localitylens.analysis.semantic_continuity import SemanticContinuityAnalyzer
-from localitylens.analysis.thrashing import ThrashingAnalyzer
-from localitylens.analysis.transition_graph import TransitionGraphAnalyzer
-from localitylens.analysis.waste import WasteAnalyzer
 from localitylens.core.exceptions import LocalityLensError, UnsupportedFormatError
-from localitylens.core.metrics import AnalysisReport
-from localitylens.core.semantic_map import SemanticMap
-from localitylens.core.trace import Trace
-from localitylens.parsers.claude_code import ClaudeCodeParser
-from localitylens.parsers.generic_json import GenericJsonParser
-from localitylens.semantic.mapper import SemanticMapper
+from localitylens.pipeline import (
+    ANALYZER_REGISTRY,
+    PARSERS,
+    analyze_trace,
+    build_semantic_map,
+)
 from localitylens.storage.db import ReportStore
 from localitylens.utils.logger import get_logger
 from localitylens.utils.validators import validate_file_exists
@@ -34,58 +25,32 @@ app = typer.Typer()
 log = get_logger(__name__)
 console = Console()
 
-PARSERS = [ClaudeCodeParser(), GenericJsonParser()]
-
-# All analyzers now share the unified signature:
-#   analyze(trace: Trace, smap: SemanticMap, report: AnalysisReport) -> None
-# No runtime introspection needed — see each analyzer's updated signature.
-ANALYZERS = [
-    AnomalyAnalyzer(),
-    SemanticContinuityAnalyzer(),
-    DependencyJumpAnalyzer(),
-    ContextEntropyAnalyzer(),
-    TransitionGraphAnalyzer(),
-    ChurnAnalyzer(),
-    ThrashingAnalyzer(),
-    WasteAnalyzer(),
-    LocalityAnalyzer(),
-]
+ANALYZERS = ANALYZER_REGISTRY
 
 
 @app.command("file")
 def analyze_file(
     trace_path: Path = typer.Argument(..., help="Path to the agent trace file"),
     db_path: Path = typer.Option(Path("localitylens.db"), help="Path to SQLite database"),
+    repo_path: Path | None = typer.Option(None, help="Repository root for semantic indexing"),
     output_dir: Path = typer.Option(Path("."), help="Directory for generated replay/graph files"),
     no_graph: bool = typer.Option(False, "--no-graph", help="Skip transition graph export"),
     no_replay: bool = typer.Option(False, "--no-replay", help="Skip replay frame export"),
 ) -> None:
     """Analyze a single trace file and display the report."""
     try:
-        # 1. Validation
         validate_file_exists(trace_path)
 
-        # 2. Parsing
         parser = next((p for p in PARSERS if p.can_parse(trace_path)), None)
         if not parser:
             raise UnsupportedFormatError(f"No parser found for file: {trace_path.name}")
 
         console.print(f"[bold blue]Parsing[/bold blue] {trace_path.name} using {parser.format.value}...")
-        trace: Trace = parser.parse(trace_path)
+        trace = parser.parse(trace_path)
+        smap = build_semantic_map(trace, repo_path=repo_path)
+        report = analyze_trace(trace, smap)
 
-        # 3. Semantic Mapping
-        smap: SemanticMap = SemanticMapper().build(trace)
-
-        # 4. Analysis — unified signature: analyze(trace, smap, report)
-        report = AnalysisReport(trace_id=trace.trace_id)
-        for analyzer in ANALYZERS:
-            analyzer.analyze(trace, smap, report)
-        report.sort_metrics()
-
-        # 5. Storage
         ReportStore(db_path).save(report)
-
-        # 6. Visualization
         console.print(TextReportVisualizer().render(report))
 
         output_dir.mkdir(parents=True, exist_ok=True)

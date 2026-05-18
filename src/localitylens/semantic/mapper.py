@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from pathlib import Path
 
-from localitylens.core.semantic_map import SemanticMap
+from localitylens.core.semantic_map import FileNode, SemanticMap
 from localitylens.core.trace import Trace
 from localitylens.semantic.python_ast import extract_python_semantics, module_name_from_path
 from localitylens.utils.logger import get_logger
@@ -26,8 +26,14 @@ class SemanticMapper:
     - Build reverse dependency lookups via add_import().
     """
 
-    def build(self, trace: Trace) -> SemanticMap:
+    def build(self, trace: Trace, repo_path: Path | None = None) -> SemanticMap:
         smap = SemanticMap(trace_id=trace.trace_id)
+        source_root = repo_path or (Path(trace.source).resolve().parent if trace.source else Path.cwd())
+
+        repository_files = self._crawl_repository(source_root) if repo_path else set()
+        for file_path in repository_files:
+            smap.files.setdefault(file_path, FileNode(path=file_path))
+
         previous: str | None = None
 
         for event in trace.events:
@@ -46,13 +52,13 @@ class SemanticMapper:
 
             previous = current
 
-        unique_files = {
+        unique_files = repository_files | {
             event.target
             for event in trace.events
             if getattr(event, "target", None) and event.target not in _IGNORED_TARGETS
         }
 
-        self._populate_ast_imports(smap, unique_files, trace.source)
+        self._populate_ast_imports(smap, unique_files, source_root)
         self._populate_directory_neighbors(smap, unique_files)
 
         return smap
@@ -61,10 +67,9 @@ class SemanticMapper:
         self,
         smap: SemanticMap,
         unique_files: set[str],
-        trace_source: str,
+        source_root: Path,
     ) -> None:
         module_index = self._module_index(unique_files)
-        source_root = Path(trace_source).resolve().parent if trace_source else Path.cwd()
 
         for file_path in unique_files:
             if Path(file_path).suffix != ".py":
@@ -81,11 +86,30 @@ class SemanticMapper:
 
             for symbol in semantics.symbols:
                 smap.add_symbol(symbol)
+            for reference in semantics.references:
+                smap.add_symbol_reference(reference)
+            for caller, callee in semantics.call_edges:
+                smap.add_call(caller, callee)
 
             for module_name in semantics.imports:
                 target = module_index.get(module_name)
                 if target and target != file_path:
                     smap.add_import(file_path, target)
+
+    @staticmethod
+    def _crawl_repository(repo_path: Path) -> set[str]:
+        if not repo_path.exists() or not repo_path.is_dir():
+            return set()
+
+        files: set[str] = set()
+        for path in repo_path.rglob("*.py"):
+            if any(part in {".git", ".venv", "__pycache__"} for part in path.parts):
+                continue
+            try:
+                files.add(path.relative_to(repo_path).as_posix())
+            except ValueError:
+                continue
+        return files
 
     @staticmethod
     def _populate_directory_neighbors(smap: SemanticMap, unique_files: set[str]) -> None:
@@ -112,7 +136,11 @@ class SemanticMapper:
                 continue
 
             SemanticMapper._put_module_index(index, module_name, file_path)
-            SemanticMapper._put_module_index(index, module_name.rsplit(".", maxsplit=1)[-1], file_path)
+            SemanticMapper._put_module_index(
+                index,
+                module_name.rsplit(".", maxsplit=1)[-1],
+                file_path,
+            )
 
         return index
 

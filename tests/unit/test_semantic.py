@@ -102,6 +102,42 @@ class TestSemanticMapper:
         assert "pkg.a.A.method" in smap.symbols
         assert smap.symbols["method"].file_path == "pkg/a.py"
 
+    def test_ast_references_and_call_graph_are_indexed(self, tmp_path):
+        mapper = SemanticMapper()
+        package = tmp_path / "pkg"
+        package.mkdir()
+        (package / "a.py").write_text(
+            "from pkg.b import helper\n\n"
+            "def run():\n"
+            "    return helper()\n",
+            encoding="utf-8",
+        )
+        (package / "b.py").write_text("def helper():\n    return 1\n", encoding="utf-8")
+        trace = _make_trace(["pkg/a.py", "pkg/b.py"])
+        trace.source = str(tmp_path / "trace.json")
+
+        smap = mapper.build(trace)
+
+        assert "helper" in smap.symbol_references
+        assert "helper" in smap.call_graph["pkg.a.run"]
+        assert "pkg/b.py" in smap.semantic_neighbors("pkg/a.py")
+
+    def test_repository_first_indexing_includes_untouched_files(self, tmp_path):
+        mapper = SemanticMapper()
+        repo = tmp_path / "repo"
+        package = repo / "pkg"
+        package.mkdir(parents=True)
+        (package / "a.py").write_text("from pkg import b\n", encoding="utf-8")
+        (package / "b.py").write_text("def helper():\n    return 1\n", encoding="utf-8")
+        trace = _make_trace(["pkg/a.py"])
+        trace.source = str(tmp_path / "trace.json")
+
+        smap = mapper.build(trace, repo_path=repo)
+
+        assert "pkg/b.py" in smap.files
+        assert "pkg/b.py" in smap.imports["pkg/a.py"]
+        assert "pkg.b.helper" in smap.symbol_definitions
+
     def test_ignored_targets_excluded(self):
         """session, unknown_file, search_operation must not appear in transitions or files."""
         mapper = SemanticMapper()

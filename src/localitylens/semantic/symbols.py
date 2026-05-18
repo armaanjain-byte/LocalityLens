@@ -41,3 +41,13 @@ class Symbol:
         if not isinstance(other, Symbol):
             return NotImplemented
         return self.name == other.name and self.file_path == other.file_path
+
+
+@dataclass(frozen=True)
+class SymbolReference:
+    """A symbol-like name referenced from a source file."""
+
+    name: str
+    file_path: str
+    line: int | None = None
+    scope: str | None = None

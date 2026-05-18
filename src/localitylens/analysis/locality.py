@@ -41,9 +41,7 @@ class LocalityAnalyzer:
             context = set(sequence[max(0, i - window) : i + 1])
             semantic_context = set(context)
             for path in context:
-                semantic_context.update(smap.imports.get(path, set()))
-                semantic_context.update(smap.reverse_imports.get(path, set()))
-                semantic_context.update(smap.neighbors.get(path, set()))
+                semantic_context.update(smap.semantic_neighbors(path))
 
             if sequence[i + 1] in semantic_context:
                 local_hits += 1

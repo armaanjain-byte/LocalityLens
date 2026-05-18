@@ -2,25 +2,26 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+import json
 
-from localitylens.cli.commands.analyze import ANALYZERS
-from localitylens.core.metrics import AnalysisReport
-from localitylens.parsers.claude_code import ClaudeCodeParser
-from localitylens.semantic.mapper import SemanticMapper
+from localitylens.pipeline import run_pipeline
 from localitylens.storage.db import ReportStore
 
 
-def test_full_pipeline_on_sample_trace(tmp_path):
-    trace_file = Path("my_trace.jsonl")
-    parser = ClaudeCodeParser()
-    trace = parser.parse(trace_file)
-    smap = SemanticMapper().build(trace)
-    report = AnalysisReport(trace_id=trace.trace_id)
+def test_full_pipeline_on_generated_trace(tmp_path):
+    trace_file = tmp_path / "trace.json"
+    trace_file.write_text(
+        json.dumps(
+            [
+                {"kind": "file_read", "timestamp": "2026-05-16T12:00:00Z", "target": "src/a.py"},
+                {"kind": "file_read", "timestamp": "2026-05-16T12:00:01Z", "target": "src/b.py"},
+                {"kind": "file_write", "timestamp": "2026-05-16T12:00:02Z", "target": "src/a.py"},
+            ]
+        ),
+        encoding="utf-8",
+    )
 
-    for analyzer in ANALYZERS:
-        analyzer.analyze(trace, smap, report)
-
+    report = run_pipeline(trace_file)
     store = ReportStore(tmp_path / "test.db")
     store.save(report)
     loaded = store.load(report.trace_id)

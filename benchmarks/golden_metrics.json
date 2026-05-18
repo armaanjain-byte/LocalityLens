@@ -1,0 +1,13 @@
+{
+  "good_workflow.json": {
+    "locality_score_min": 0.5,
+    "oscillation_thrashing_max": 0.0
+  },
+  "thrashing_workflow.json": {
+    "oscillation_thrashing_min": 1.0,
+    "thrashing_signal_count_min": 3
+  },
+  "retrieval_heavy_workflow.json": {
+    "repeated_searches_min": 2
+  }
+}

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 
-from localitylens.semantic.symbols import Symbol
+from localitylens.semantic.symbols import Symbol, SymbolReference
 
 
 @dataclass
@@ -40,6 +40,11 @@ class SemanticMap:
         default_factory=lambda: defaultdict(set)
     )
     symbols: dict[str, Symbol] = field(default_factory=dict)
+    symbol_definitions: dict[str, Symbol] = field(default_factory=dict)
+    symbol_references: dict[str, list[SymbolReference]] = field(
+        default_factory=lambda: defaultdict(list)
+    )
+    call_graph: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
     transitions: list[tuple[str, str]] = field(default_factory=list)
     reverse_imports: dict[str, set[str]] = field(
         default_factory=lambda: defaultdict(set)
@@ -72,10 +77,45 @@ class SemanticMap:
     def add_symbol(self, symbol: Symbol) -> None:
         """Index a symbol definition by its fully qualified and short names."""
         self.symbols[symbol.name] = symbol
+        self.symbol_definitions[symbol.name] = symbol
         short_name = symbol.name.rsplit(".", maxsplit=1)[-1]
         self.symbols.setdefault(short_name, symbol)
         if symbol.file_path in self.files:
             self.files[symbol.file_path].symbol_names.append(symbol.name)
+
+    def add_symbol_reference(self, reference: SymbolReference) -> None:
+        """Record a symbol-like reference found in source."""
+        self.symbol_references[reference.name].append(reference)
+
+    def add_call(self, caller: str, callee: str) -> None:
+        """Record a caller -> callee relationship."""
+        self.call_graph[caller].add(callee)
+
+    def semantic_neighbors(self, path: str) -> set[str]:
+        """Return files connected through imports, references, calls, or adjacency."""
+        connected = set(self.imports.get(path, set()))
+        connected.update(self.reverse_imports.get(path, set()))
+        connected.update(self.neighbors.get(path, set()))
+
+        for symbol in self.files.get(path, FileNode(path)).symbol_names:
+            for callee in self.call_graph.get(symbol, set()):
+                target = self.symbols.get(callee) or self.symbols.get(
+                    callee.rsplit(".", 1)[-1]
+                )
+                if target and target.file_path != path:
+                    connected.add(target.file_path)
+
+        for references in self.symbol_references.values():
+            for reference in references:
+                if reference.file_path != path:
+                    continue
+                target = self.symbols.get(reference.name) or self.symbols.get(
+                    reference.name.rsplit(".", 1)[-1]
+                )
+                if target and target.file_path != path:
+                    connected.add(target.file_path)
+
+        return connected
 
     def dependency_graph(self) -> dict[str, set[str]]:
         """Return an undirected view of import relationships for graph metrics."""
