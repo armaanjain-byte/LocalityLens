@@ -35,6 +35,8 @@ class WasteAnalyzer:
         gaps: list[float] = []
         out_of_order = 0
         for prev, curr in zip(events, events[1:]):
+            if prev.timestamp is None or curr.timestamp is None:
+                continue
             delta = (curr.timestamp - prev.timestamp).total_seconds()
             if delta < 0:
                 out_of_order += 1

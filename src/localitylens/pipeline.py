@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Protocol
 
 from localitylens.analysis.anomaly import AnomalyAnalyzer
 from localitylens.analysis.churn import ChurnAnalyzer
@@ -21,9 +22,16 @@ from localitylens.parsers.claude_code import ClaudeCodeParser
 from localitylens.parsers.generic_json import GenericJsonParser
 from localitylens.semantic.mapper import SemanticMapper
 
+
+class Analyzer(Protocol):
+    """Shared analyzer protocol."""
+
+    def analyze(self, trace: Trace, smap: SemanticMap, report: AnalysisReport) -> None:
+        """Append metric results to report."""
+
 PARSERS = [ClaudeCodeParser(), GenericJsonParser()]
 
-ANALYZER_REGISTRY = [
+ANALYZER_REGISTRY: list[Analyzer] = [
     AnomalyAnalyzer(),
     SemanticContinuityAnalyzer(),
     DependencyJumpAnalyzer(),

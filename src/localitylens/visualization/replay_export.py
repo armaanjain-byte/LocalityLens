@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from localitylens.core.trace import Trace
 
@@ -30,7 +31,7 @@ class ReplayExporter:
             The resolved output path string.
         """
         output = Path(output_path)
-        frames: list[dict] = []
+        frames: list[dict[str, Any]] = []
         previous: str | None = None
 
         for idx, event in enumerate(trace.events):

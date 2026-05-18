@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter, deque
 from pathlib import PurePosixPath
+from typing import Any
 
 from localitylens.core.metrics import AnalysisReport, MetricNames, MetricResult, Severity
 from localitylens.core.semantic_map import SemanticMap
@@ -23,7 +24,7 @@ class AnomalyAnalyzer:
     def analyze(self, trace: Trace, smap: SemanticMap, report: AnalysisReport) -> None:
         del smap
 
-        anomalies: list[dict] = []
+        anomalies: list[dict[str, Any]] = []
         recent: deque[str] = deque(maxlen=25)
         revisit_counter: Counter[str] = Counter()
         previous: str | None = None

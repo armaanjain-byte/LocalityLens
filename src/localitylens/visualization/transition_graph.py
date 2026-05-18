@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from pathlib import Path
 
-from pyvis.network import Network
+from pyvis.network import Network  # type: ignore[import-untyped]
 
 from localitylens.core.trace import Trace
 

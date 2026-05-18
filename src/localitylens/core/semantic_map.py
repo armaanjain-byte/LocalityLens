@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 
-from localitylens.semantic.symbols import Symbol, SymbolReference
+from localitylens.semantic.symbols import CallSite, Symbol, SymbolDefinition, SymbolReference
 
 
 @dataclass
@@ -41,10 +41,16 @@ class SemanticMap:
     )
     symbols: dict[str, Symbol] = field(default_factory=dict)
     symbol_definitions: dict[str, Symbol] = field(default_factory=dict)
+    definitions_by_symbol: dict[str, SymbolDefinition] = field(default_factory=dict)
     symbol_references: dict[str, list[SymbolReference]] = field(
         default_factory=lambda: defaultdict(list)
     )
+    references_by_symbol: dict[str, list[SymbolReference]] = field(
+        default_factory=lambda: defaultdict(list)
+    )
     call_graph: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
+    calls_by_symbol: dict[str, list[CallSite]] = field(default_factory=lambda: defaultdict(list))
+    owners_by_reference: dict[SymbolReference, str] = field(default_factory=dict)
     transitions: list[tuple[str, str]] = field(default_factory=list)
     reverse_imports: dict[str, set[str]] = field(
         default_factory=lambda: defaultdict(set)
@@ -78,6 +84,13 @@ class SemanticMap:
         """Index a symbol definition by its fully qualified and short names."""
         self.symbols[symbol.name] = symbol
         self.symbol_definitions[symbol.name] = symbol
+        self.definitions_by_symbol[symbol.name] = SymbolDefinition(
+            name=symbol.name,
+            kind=symbol.kind,
+            file_path=symbol.file_path,
+            line=symbol.line,
+            module=symbol.name.rsplit(".", 1)[0] if "." in symbol.name else "",
+        )
         short_name = symbol.name.rsplit(".", maxsplit=1)[-1]
         self.symbols.setdefault(short_name, symbol)
         if symbol.file_path in self.files:
@@ -86,10 +99,20 @@ class SemanticMap:
     def add_symbol_reference(self, reference: SymbolReference) -> None:
         """Record a symbol-like reference found in source."""
         self.symbol_references[reference.name].append(reference)
+        owner = reference.resolved_symbol or self._resolve_reference_name(reference.name)
+        if owner:
+            self.references_by_symbol[owner].append(reference)
+            self.owners_by_reference[reference] = owner
 
     def add_call(self, caller: str, callee: str) -> None:
         """Record a caller -> callee relationship."""
         self.call_graph[caller].add(callee)
+
+    def add_call_site(self, call_site: CallSite) -> None:
+        """Record a call site and update the call graph by resolved target."""
+        target = call_site.resolved_symbol or call_site.callee
+        self.call_graph[call_site.caller].add(target)
+        self.calls_by_symbol[call_site.caller].append(call_site)
 
     def semantic_neighbors(self, path: str) -> set[str]:
         """Return files connected through imports, references, calls, or adjacency."""
@@ -112,10 +135,19 @@ class SemanticMap:
                 target = self.symbols.get(reference.name) or self.symbols.get(
                     reference.name.rsplit(".", 1)[-1]
                 )
+                if reference.resolved_symbol:
+                    target = self.symbols.get(reference.resolved_symbol) or target
                 if target and target.file_path != path:
                     connected.add(target.file_path)
 
         return connected
+
+    def _resolve_reference_name(self, name: str) -> str | None:
+        if name in self.symbol_definitions:
+            return name
+        short_name = name.rsplit(".", 1)[-1]
+        symbol = self.symbols.get(short_name)
+        return symbol.name if symbol else None
 
     def dependency_graph(self) -> dict[str, set[str]]:
         """Return an undirected view of import relationships for graph metrics."""

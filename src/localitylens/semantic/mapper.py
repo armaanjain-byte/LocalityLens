@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from pathlib import Path
 
-from localitylens.core.semantic_map import FileNode, SemanticMap
+from localitylens.core.semantic_map import SemanticMap
 from localitylens.core.trace import Trace
-from localitylens.semantic.python_ast import extract_python_semantics, module_name_from_path
+from localitylens.semantic.repository_indexer import RepositoryIndexer
 from localitylens.utils.logger import get_logger
 
 _IGNORED_TARGETS = frozenset({"session", "unknown_file", "search_operation"})
@@ -27,12 +26,11 @@ class SemanticMapper:
     """
 
     def build(self, trace: Trace, repo_path: Path | None = None) -> SemanticMap:
-        smap = SemanticMap(trace_id=trace.trace_id)
         source_root = repo_path or (Path(trace.source).resolve().parent if trace.source else Path.cwd())
+        indexer = RepositoryIndexer()
 
-        repository_files = self._crawl_repository(source_root) if repo_path else set()
-        for file_path in repository_files:
-            smap.files.setdefault(file_path, FileNode(path=file_path))
+        repository_files = indexer.crawl(source_root) if repo_path else set()
+        smap = SemanticMap(trace_id=trace.trace_id)
 
         previous: str | None = None
 
@@ -58,61 +56,15 @@ class SemanticMapper:
             if getattr(event, "target", None) and event.target not in _IGNORED_TARGETS
         }
 
-        self._populate_ast_imports(smap, unique_files, source_root)
+        indexer.index_paths(unique_files, source_root, smap)
         self._populate_directory_neighbors(smap, unique_files)
 
         return smap
 
-    def _populate_ast_imports(
-        self,
-        smap: SemanticMap,
-        unique_files: set[str],
-        source_root: Path,
-    ) -> None:
-        module_index = self._module_index(unique_files)
-
-        for file_path in unique_files:
-            if Path(file_path).suffix != ".py":
-                continue
-
-            resolved = self._resolve_file(file_path, source_root)
-            if not resolved:
-                continue
-
-            try:
-                semantics = extract_python_semantics(resolved, logical_path=file_path)
-            except (OSError, SyntaxError, UnicodeDecodeError):
-                continue
-
-            for symbol in semantics.symbols:
-                smap.add_symbol(symbol)
-            for reference in semantics.references:
-                smap.add_symbol_reference(reference)
-            for caller, callee in semantics.call_edges:
-                smap.add_call(caller, callee)
-
-            for module_name in semantics.imports:
-                target = module_index.get(module_name)
-                if target and target != file_path:
-                    smap.add_import(file_path, target)
-
-    @staticmethod
-    def _crawl_repository(repo_path: Path) -> set[str]:
-        if not repo_path.exists() or not repo_path.is_dir():
-            return set()
-
-        files: set[str] = set()
-        for path in repo_path.rglob("*.py"):
-            if any(part in {".git", ".venv", "__pycache__"} for part in path.parts):
-                continue
-            try:
-                files.add(path.relative_to(repo_path).as_posix())
-            except ValueError:
-                continue
-        return files
-
     @staticmethod
     def _populate_directory_neighbors(smap: SemanticMap, unique_files: set[str]) -> None:
+        from collections import defaultdict
+
         parent_buckets: dict[str, list[str]] = defaultdict(list)
         for file_path in unique_files:
             parent_buckets[str(Path(file_path).parent)].append(file_path)
@@ -122,49 +74,3 @@ class SemanticMapper:
                 for dst in files:
                     if src != dst:
                         smap.add_neighbor(src, dst)
-
-    @staticmethod
-    def _module_index(files: set[str]) -> dict[str, str]:
-        index: dict[str, str] = {}
-        for file_path in files:
-            path = Path(file_path)
-            if path.suffix != ".py":
-                continue
-
-            module_name = module_name_from_path(file_path)
-            if not module_name:
-                continue
-
-            SemanticMapper._put_module_index(index, module_name, file_path)
-            SemanticMapper._put_module_index(
-                index,
-                module_name.rsplit(".", maxsplit=1)[-1],
-                file_path,
-            )
-
-        return index
-
-    @staticmethod
-    def _put_module_index(index: dict[str, str], module_name: str, file_path: str) -> None:
-        existing = index.get(module_name)
-        if existing is None or len(file_path) > len(existing):
-            if existing is not None:
-                log.debug(
-                    "Module name collision %r: %r vs %r (using longer path)",
-                    module_name,
-                    existing,
-                    file_path,
-                )
-            index[module_name] = file_path
-
-    @staticmethod
-    def _resolve_file(file_path: str, source_root: Path) -> Path | None:
-        candidates = (Path(file_path), source_root / file_path, Path.cwd() / file_path)
-        for candidate in candidates:
-            try:
-                resolved = candidate.resolve()
-            except OSError:
-                continue
-            if resolved.is_file():
-                return resolved
-        return None

@@ -50,7 +50,7 @@ class AnalysisReport:
     trace_id: str
     metrics: list[MetricResult] = field(default_factory=list)
     summary: str = ""
-    anomalies: list[dict] = field(default_factory=list)
+    anomalies: list[dict[str, Any]] = field(default_factory=list)
 
     def sort_metrics(self) -> None:
         self.metrics.sort(key=lambda m: m.name)
