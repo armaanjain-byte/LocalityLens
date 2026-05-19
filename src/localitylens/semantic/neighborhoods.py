@@ -31,6 +31,43 @@ class SemanticNeighborhoods:
         distances = self._distances(graph, path, max_hops=radius)
         return set(distances)
 
+    def neighborhood_for_symbol(self, symbol: str, radius: int = 1) -> set[str]:
+        """Return symbols within a semantic radius of the given symbol."""
+        distances = self._distances(self._symbol_graph(), symbol, max_hops=radius)
+        return set(distances)
+
+    def neighborhood_overlap(self, left: set[str], right: set[str]) -> float:
+        """Return Jaccard overlap between two semantic neighborhoods."""
+        if not left and not right:
+            return 1.0
+        return len(left & right) / len(left | right)
+
+    def graph_locality(self, sequence: list[str], radius: int = 2) -> float:
+        """Measure how often consecutive symbols remain within graph radius."""
+        if len(sequence) < 2:
+            return 1.0
+        hits = 0
+        total = 0
+        for source, target in zip(sequence, sequence[1:]):
+            distance = self.symbol_distance(source, target, max_hops=radius)
+            if distance is not None and distance <= radius:
+                hits += 1
+            total += 1
+        return hits / total if total else 1.0
+
+    def semantic_region_transitions(self, sequence: list[str]) -> list[tuple[str, str]]:
+        """Return module/region transitions for a symbol sequence."""
+        regions = [self.smap.module_for_symbol(symbol) for symbol in sequence]
+        return [
+            (source, target)
+            for source, target in zip(regions, regions[1:])
+            if source != target
+        ]
+
+    def neighborhoods_for_sequence(self, sequence: list[str], radius: int = 1) -> list[set[str]]:
+        """Return rolling symbol neighborhoods for a sequence."""
+        return [self.neighborhood_for_symbol(symbol, radius=radius) for symbol in sequence]
+
     def _file_graph(self) -> dict[str, set[str]]:
         graph = self.smap.dependency_graph()
         for path in self.smap.files:

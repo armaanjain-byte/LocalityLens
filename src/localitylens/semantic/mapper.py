@@ -28,8 +28,10 @@ class SemanticMapper:
     def build(self, trace: Trace, repo_path: Path | None = None) -> SemanticMap:
         source_root = repo_path or (Path(trace.source).resolve().parent if trace.source else Path.cwd())
         indexer = RepositoryIndexer()
+        if not trace.events and repo_path is None:
+            return SemanticMap(trace_id=trace.trace_id)
 
-        repository_files = indexer.crawl(source_root) if repo_path else set()
+        repository_files = indexer.crawl(source_root)
         smap = SemanticMap(trace_id=trace.trace_id)
 
         previous: str | None = None

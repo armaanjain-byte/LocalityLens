@@ -7,6 +7,8 @@ from collections import Counter, deque
 from localitylens.core.metrics import AnalysisReport, MetricNames, MetricResult, Severity
 from localitylens.core.semantic_map import SemanticMap
 from localitylens.core.trace import Trace
+from localitylens.semantic.context_window import ContextWindowSimulator
+from localitylens.semantic.neighborhoods import SemanticNeighborhoods
 from localitylens.utils.filters import is_real_file_target
 
 OSCILLATION_PATTERN_LENGTH = 4
@@ -24,21 +26,50 @@ class ThrashingAnalyzer:
     """
 
     def analyze(self, trace: Trace, smap: SemanticMap, report: AnalysisReport) -> None:
-        del smap
-
         files = [
             e.target
             for e in trace.events
             if e.kind.value in ("file_read", "file_write") and is_real_file_target(e.target)
         ]
+        concepts = smap.concept_sequence() or files
+        neighborhoods = SemanticNeighborhoods(smap)
+        symbol_to_module = {symbol: smap.module_for_symbol(symbol) for symbol in concepts}
+        symbol_neighborhoods = {
+            symbol: neighborhoods.neighborhood_for_symbol(symbol, radius=1) for symbol in set(concepts)
+        }
+        context_state = ContextWindowSimulator(capacity=DEFAULT_CONTEXT_WINDOW).simulate(
+            concepts,
+            symbol_to_module=symbol_to_module,
+            neighborhoods=symbol_neighborhoods,
+        )
 
         oscillations, possible_windows = self._detect_oscillations(files)
         reloads = self._detect_reloads_after_eviction(files)
         repeated_reads = self._detect_repeated_reads(files)
         repeated_searches = self._detect_repeated_searches(trace)
+        semantic_thrashing = (
+            self._detect_semantic_thrashing(concepts, neighborhoods)
+            if smap.definitions_by_symbol
+            else 0
+        )
+        symbol_thrashing = self._detect_repeated_reads(concepts)
+        context_collapse = sum(
+            1
+            for event in context_state.events
+            if event.evicted is not None and event.compression_ratio < 0.75
+        )
 
         oscillation_count = len(oscillations)
-        total_signals = oscillation_count + reloads + repeated_reads + repeated_searches
+        total_signals = (
+            oscillation_count
+            + reloads
+            + repeated_reads
+            + repeated_searches
+            + semantic_thrashing
+            + symbol_thrashing
+            + context_collapse
+            + context_state.reload_count
+        )
         total_opportunities = max(1, possible_windows + len(files) + len(trace.events))
         rate = total_signals / total_opportunities
 
@@ -56,7 +87,9 @@ class ThrashingAnalyzer:
                 severity=severity,
                 details=(
                     f"{oscillation_count} oscillation loops, {reloads} reloads after eviction, "
-                    f"{repeated_reads} repeated reads, and {repeated_searches} repeated searches "
+                    f"{repeated_reads} repeated reads, {repeated_searches} repeated searches, "
+                    f"{semantic_thrashing} semantic jumps, {symbol_thrashing} symbol reactivations, "
+                    f"and {context_collapse} context collapse events "
                     f"detected (combined rate: {rate:.2%}). "
                     f"Top pairs: {top_pairs or 'None'}"
                 ),
@@ -65,6 +98,11 @@ class ThrashingAnalyzer:
                     "reloads_after_eviction": reloads,
                     "repeated_reads": repeated_reads,
                     "repeated_searches": repeated_searches,
+                    "semantic_thrashing": semantic_thrashing,
+                    "symbol_thrashing": symbol_thrashing,
+                    "context_collapse": context_collapse,
+                    "context_reload_pressure": round(context_state.reload_pressure, 4),
+                    "context_compression_ratio": context_state.compression_ratio,
                     "thrashing_signal_count": total_signals,
                     "thrashing_rate": round(rate, 4),
                     "oscillation_rate": round(
@@ -128,6 +166,19 @@ class ThrashingAnalyzer:
             window.append(target)
 
         return repeats
+
+    @staticmethod
+    def _detect_semantic_thrashing(
+        concepts: list[str],
+        neighborhoods: SemanticNeighborhoods,
+        max_local_hops: int = 2,
+    ) -> int:
+        jumps = 0
+        for source, target in zip(concepts, concepts[1:]):
+            distance = neighborhoods.symbol_distance(source, target, max_hops=max_local_hops)
+            if distance is None:
+                jumps += 1
+        return jumps
 
     @staticmethod
     def _detect_repeated_searches(trace: Trace) -> int:

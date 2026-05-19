@@ -49,6 +49,7 @@ class RepositoryIndexer:
 
             for symbol in semantics.symbols:
                 smap.add_symbol(symbol)
+            smap.add_import_aliases(semantics.path, semantics.imported_symbols)
             for reference in semantics.references:
                 smap.add_symbol_reference(reference)
             for call_site in semantics.call_sites:

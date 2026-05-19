@@ -49,8 +49,10 @@ class SemanticMap:
         default_factory=lambda: defaultdict(list)
     )
     call_graph: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
+    symbol_call_graph: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
     calls_by_symbol: dict[str, list[CallSite]] = field(default_factory=lambda: defaultdict(list))
     owners_by_reference: dict[SymbolReference, str] = field(default_factory=dict)
+    import_aliases: dict[str, dict[str, str]] = field(default_factory=dict)
     transitions: list[tuple[str, str]] = field(default_factory=list)
     reverse_imports: dict[str, set[str]] = field(
         default_factory=lambda: defaultdict(set)
@@ -107,12 +109,49 @@ class SemanticMap:
     def add_call(self, caller: str, callee: str) -> None:
         """Record a caller -> callee relationship."""
         self.call_graph[caller].add(callee)
+        self.symbol_call_graph[caller].add(callee)
 
     def add_call_site(self, call_site: CallSite) -> None:
         """Record a call site and update the call graph by resolved target."""
         target = call_site.resolved_symbol or call_site.callee
         self.call_graph[call_site.caller].add(target)
+        self.symbol_call_graph[call_site.caller].add(target)
         self.calls_by_symbol[call_site.caller].append(call_site)
+
+    def add_import_aliases(self, file_path: str, aliases: dict[str, str]) -> None:
+        """Record import alias ownership for a file."""
+        self.import_aliases.setdefault(file_path, {}).update(aliases)
+
+    def concepts_for_file(self, path: str) -> set[str]:
+        """Return symbols and owned references active for a file."""
+        concepts = set(self.files.get(path, FileNode(path)).symbol_names)
+        for references in self.symbol_references.values():
+            for reference in references:
+                if reference.file_path != path:
+                    continue
+                owner = self.owners_by_reference.get(reference) or reference.resolved_symbol
+                if owner:
+                    concepts.add(owner)
+        if not concepts and path in self.files:
+            concepts.add(path)
+        return concepts
+
+    def module_for_symbol(self, symbol_name: str) -> str:
+        """Return the module-like owner for a symbol or path fallback."""
+        definition = self.definitions_by_symbol.get(symbol_name)
+        if definition:
+            return definition.module
+        if "/" in symbol_name or "\\" in symbol_name:
+            return symbol_name.rsplit(".", 1)[0].replace("/", ".").replace("\\", ".")
+        return symbol_name.rsplit(".", 1)[0] if "." in symbol_name else symbol_name
+
+    def concept_sequence(self) -> list[str]:
+        """Project touched files into primary semantic concepts."""
+        sequence: list[str] = []
+        for path in self.touch_sequence():
+            concepts = sorted(self.concepts_for_file(path))
+            sequence.append(concepts[0] if concepts else path)
+        return sequence
 
     def semantic_neighbors(self, path: str) -> set[str]:
         """Return files connected through imports, references, calls, or adjacency."""

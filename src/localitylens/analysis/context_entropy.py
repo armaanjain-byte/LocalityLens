@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import math
 from collections import Counter
+from typing import Hashable
 
 from localitylens.core.metrics import AnalysisReport, MetricNames, MetricResult, Severity
 from localitylens.core.semantic_map import SemanticMap
 from localitylens.core.trace import Trace
+from localitylens.semantic.neighborhoods import SemanticNeighborhoods
 from localitylens.utils.filters import is_real_file_target
 
 
@@ -24,19 +26,29 @@ class ContextEntropyAnalyzer:
     """
 
     def analyze(self, trace: Trace, smap: SemanticMap, report: AnalysisReport) -> None:
-        files = [
-            e.target
-            for e in trace.events
-            if e.kind.value in ("file_read", "file_write") and is_real_file_target(e.target)
-        ]
+        sequence = smap.concept_sequence()
+        if not sequence:
+            sequence = [
+                e.target
+                for e in trace.events
+                if e.kind.value in ("file_read", "file_write") and is_real_file_target(e.target)
+            ]
+        transition_items: list[tuple[Hashable, Hashable]]
+        if not smap.definitions_by_symbol:
+            transition_items = [
+                (sequence[i], sequence[i + 1])
+                for i in range(len(sequence) - 1)
+                if sequence[i] != sequence[i + 1]
+            ]
+        else:
+            neighborhoods = SemanticNeighborhoods(smap).neighborhoods_for_sequence(sequence, radius=1)
+            transition_items = [
+                (frozenset(neighborhoods[i]), frozenset(neighborhoods[i + 1]))
+                for i in range(len(neighborhoods) - 1)
+                if neighborhoods[i] != neighborhoods[i + 1]
+            ]
 
-        transitions = [
-            (files[i], files[i + 1])
-            for i in range(len(files) - 1)
-            if files[i] != files[i + 1]
-        ]
-
-        counts = Counter(transitions)
+        counts = Counter(transition_items)
         total = sum(counts.values())
         n_unique = len(counts)
 
@@ -57,12 +69,12 @@ class ContextEntropyAnalyzer:
                 severity=severity,
                 details=(
                     f"Relative transition entropy: {relative_entropy:.4f} "
-                    f"({n_unique} unique transition pairs, {total} total). "
-                    "Higher values indicate fragmented workflows."
+                    f"({n_unique} unique semantic neighborhood transitions, {total} total). "
+                    "Higher values indicate volatile semantic focus."
                 ),
                 extra={
-                    "transition_count": total,
-                    "unique_pairs": n_unique,
+                    "semantic_transition_count": total,
+                    "unique_neighborhood_pairs": n_unique,
                 },
             )
         )

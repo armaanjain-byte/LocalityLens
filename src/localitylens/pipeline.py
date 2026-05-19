@@ -8,9 +8,12 @@ from typing import Protocol
 from localitylens.analysis.anomaly import AnomalyAnalyzer
 from localitylens.analysis.churn import ChurnAnalyzer
 from localitylens.analysis.context_entropy import ContextEntropyAnalyzer
+from localitylens.analysis.cognitive_load import CognitiveLoadAnalyzer
 from localitylens.analysis.dependency_jump import DependencyJumpAnalyzer
 from localitylens.analysis.locality import LocalityAnalyzer
+from localitylens.analysis.retrieval_pressure import RetrievalPressureAnalyzer
 from localitylens.analysis.semantic_continuity import SemanticContinuityAnalyzer
+from localitylens.analysis.semantic_drift import SemanticDriftAnalyzer
 from localitylens.analysis.thrashing import ThrashingAnalyzer
 from localitylens.analysis.transition_graph import TransitionGraphAnalyzer
 from localitylens.analysis.waste import WasteAnalyzer
@@ -39,6 +42,9 @@ ANALYZER_REGISTRY: list[Analyzer] = [
     TransitionGraphAnalyzer(),
     ChurnAnalyzer(),
     ThrashingAnalyzer(),
+    SemanticDriftAnalyzer(),
+    RetrievalPressureAnalyzer(),
+    CognitiveLoadAnalyzer(),
     WasteAnalyzer(),
     LocalityAnalyzer(),
 ]
