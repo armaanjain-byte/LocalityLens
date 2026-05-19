@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from localitylens.visualization.replay_viewer import ReplayViewer
+from localitylens.visualization.dashboard import DashboardVisualizer
 
 import typer
 from rich.console import Console
@@ -53,9 +55,16 @@ def analyze_file(
         ReportStore(db_path).save(report)
         console.print(TextReportVisualizer().render(report))
 
+        dashboard_path = DashboardVisualizer().render(report,output_dir / "dashboard.html",)
+
+        console.print()
+        console.print(f"[bold magenta]Dashboard generated:[/bold magenta] {dashboard_path}")            
+
+
         output_dir.mkdir(parents=True, exist_ok=True)
         if not no_replay:
             replay_path = ReplayExporter().export(trace, output_dir / "replay_frames.json")
+            ReplayViewer().generate()
             console.print(f"[bold cyan]Replay frames exported:[/bold cyan] {replay_path}")
 
         if not no_graph:

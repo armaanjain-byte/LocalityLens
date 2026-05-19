@@ -1,0 +1,459 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LocalityLens Dashboard</title>
+
+<style>
+body {
+    background: #0b1020;
+    color: white;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 30px;
+}
+
+h1 {
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    color: #94a3b8;
+    margin-bottom: 30px;
+}
+
+.section {
+    margin-top: 40px;
+}
+
+.primary-issue {
+    background: linear-gradient(
+        135deg,
+        #3b0a0a,
+        #1f1111
+    );
+
+    border-left: 8px solid #ef4444;
+
+    padding: 24px;
+
+    border-radius: 16px;
+
+    margin-bottom: 40px;
+}
+
+.primary-title {
+    color: #fca5a5;
+
+    font-size: 13px;
+
+    letter-spacing: 0.08em;
+
+    text-transform: uppercase;
+
+    margin-bottom: 10px;
+}
+
+.primary-heading {
+    font-size: 34px;
+
+    font-weight: bold;
+
+    margin-bottom: 14px;
+}
+
+.primary-description {
+    color: #f3f4f6;
+
+    line-height: 1.7;
+
+    font-size: 17px;
+}
+
+.severity-grid {
+    display: grid;
+
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+
+    gap: 18px;
+
+    margin-top: 20px;
+}
+
+.severity-card {
+    background: #111827;
+
+    padding: 20px;
+
+    border-radius: 14px;
+
+    text-align: center;
+}
+
+.severity-label {
+    color: #94a3b8;
+
+    margin-bottom: 12px;
+
+    font-size: 13px;
+
+    letter-spacing: 0.06em;
+}
+
+.severity-count {
+    font-size: 34px;
+
+    font-weight: bold;
+}
+
+.story {
+    background: #111827;
+
+    padding: 24px;
+
+    border-radius: 16px;
+
+    line-height: 1.8;
+
+    color: #e5e7eb;
+}
+
+.card {
+    background: #111827;
+
+    padding: 24px;
+
+    border-radius: 16px;
+
+    margin-bottom: 20px;
+
+    border-left: 6px solid #ef4444;
+}
+
+.card-header {
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    margin-bottom: 14px;
+}
+
+.badge {
+    padding: 6px 12px;
+
+    border-radius: 999px;
+
+    color: white;
+
+    font-size: 12px;
+
+    font-weight: bold;
+}
+
+.details {
+    margin-top: 16px;
+
+    color: #cbd5e1;
+
+    line-height: 1.7;
+}
+</style>
+</head>
+
+<body>
+
+<h1>LocalityLens Workflow Analysis</h1>
+
+<div class="subtitle">
+AST-assisted observability for coding-agent workflows
+</div>
+
+
+            <div class="primary-issue">
+                <div class="primary-title">
+                    PRIMARY ISSUE DETECTED
+                </div>
+
+                <div class="primary-heading">
+                    Behavioral instability detected
+                </div>
+
+                <div class="primary-description">
+                    The workflow exhibited repeated anomalous behavior patterns.
+                </div>
+            </div>
+            
+
+<div class="section">
+    <h2>Severity Summary</h2>
+
+    <div class="severity-grid">
+        
+            <div class="severity-card">
+                <div class="severity-label">CRITICAL</div>
+
+                <div
+                    class="severity-count"
+                    style="color:#ef4444"
+                >
+                    6
+                </div>
+            </div>
+            
+            <div class="severity-card">
+                <div class="severity-label">HIGH</div>
+
+                <div
+                    class="severity-count"
+                    style="color:#fb923c"
+                >
+                    2
+                </div>
+            </div>
+            
+            <div class="severity-card">
+                <div class="severity-label">MEDIUM</div>
+
+                <div
+                    class="severity-count"
+                    style="color:#facc15"
+                >
+                    1
+                </div>
+            </div>
+            
+            <div class="severity-card">
+                <div class="severity-label">LOW</div>
+
+                <div
+                    class="severity-count"
+                    style="color:#84cc16"
+                >
+                    1
+                </div>
+            </div>
+            
+            <div class="severity-card">
+                <div class="severity-label">OK</div>
+
+                <div
+                    class="severity-count"
+                    style="color:#22c55e"
+                >
+                    0
+                </div>
+            </div>
+            
+    </div>
+</div>
+
+<div class="section">
+    <h2>Session Story</h2>
+
+    <div class="story">
+        The workflow began by exploring multiple semantic regions and traversing several codebase areas. Repeated oscillation behavior emerged as the agent revisited previously abandoned context instead of maintaining forward progress. The workflow exhibited unstable file churn, with many repeated revisits and modifications. Semantic focus deteriorated as the workflow jumped across unrelated code regions. Workflow stability eventually collapsed into high-entropy context switching behavior. Overall, the session demonstrated significant context instability and reduced semantic locality.
+    </div>
+</div>
+
+<div class="section">
+    <h2>Key Findings</h2>
+
+    
+            <div class="card">
+                <div class="card-header">
+                    <h3>Behavioral instability detected</h3>
+
+                    <span
+                        class="badge"
+                        style="background:#facc15"
+                    >
+                        MEDIUM
+                    </span>
+                </div>
+
+                <p>The workflow exhibited repeated anomalous behavior patterns.</p>
+
+                <div class="details">
+                    6288 anomalies detected (1426 critical, 2948 high)
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>High file churn observed</h3>
+
+                    <span
+                        class="badge"
+                        style="background:#fb923c"
+                    >
+                        HIGH
+                    </span>
+                </div>
+
+                <p>The workflow repeatedly rewrote or revisited files, suggesting unstable context handling.</p>
+
+                <div class="details">
+                    57704 writes / 75646 file events (reads + writes).
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>High cognitive load</h3>
+
+                    <span
+                        class="badge"
+                        style="background:#ef4444"
+                    >
+                        CRITICAL
+                    </span>
+                </div>
+
+                <p>Too many active semantic regions were involved simultaneously.</p>
+
+                <div class="details">
+                    3977 active symbols across 3841 modules with dependency breadth 0.
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>Unstable workflow focus</h3>
+
+                    <span
+                        class="badge"
+                        style="background:#ef4444"
+                    >
+                        CRITICAL
+                    </span>
+                </div>
+
+                <p>The workflow changed direction frequently instead of maintaining stable focus.</p>
+
+                <div class="details">
+                    Relative transition entropy: 1.0000 (2 unique semantic neighborhood transitions, 6 total). Higher values indicate volatile semantic focus.
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>Weak context locality</h3>
+
+                    <span
+                        class="badge"
+                        style="background:#fb923c"
+                    >
+                        HIGH
+                    </span>
+                </div>
+
+                <p>The workflow failed to stay near recently active semantic regions.</p>
+
+                <div class="details">
+                    66265/75645 transitions stayed within a 10-event semantic concept window.
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>Heavy workflow thrashing detected</h3>
+
+                    <span
+                        class="badge"
+                        style="background:#ef4444"
+                    >
+                        CRITICAL
+                    </span>
+                </div>
+
+                <p>The agent repeatedly bounced between the same semantic regions instead of progressing steadily.</p>
+
+                <div class="details">
+                    763 oscillation loops, 3647 reloads after eviction, 64111 repeated reads, 28020 repeated searches, 75645 semantic jumps, 64314 symbol reactivations, and 7667 context collapse events detected (combined rate: 95.79%). Top pairs: "https://github.com/tianocore/edk2/"<->"https://github.com/tianocore/edk2/tree/master/BaseTools/Bin/"(46), "https://github.com/tianocore/edk2/tree/master/BaseTools/Bin/"<->"https://github.com/tianocore/edk2/"(45), pyupgrade/tests/unicode_literals_test.py<->pyupgrade/pyupgrade.py(25), pyupgrade/pyupgrade.py<->pyupgrade/tests/unicode_literals_test.py(25), setup.py<->requirements.txt(24)
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>Excessive retrieval behavior</h3>
+
+                    <span
+                        class="badge"
+                        style="background:#84cc16"
+                    >
+                        LOW
+                    </span>
+                </div>
+
+                <p>The workflow repeatedly reloaded previously seen context.</p>
+
+                <div class="details">
+                    2304 semantic reloads after eviction.
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>Low semantic continuity</h3>
+
+                    <span
+                        class="badge"
+                        style="background:#ef4444"
+                    >
+                        CRITICAL
+                    </span>
+                </div>
+
+                <p>The agent struggled to remain inside a stable semantic neighborhood.</p>
+
+                <div class="details">
+                    0/20570 transitions remained inside semantic dependency neighborhoods.
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>Semantic focus instability</h3>
+
+                    <span
+                        class="badge"
+                        style="background:#ef4444"
+                    >
+                        CRITICAL
+                    </span>
+                </div>
+
+                <p>The workflow frequently jumped between unrelated areas of the codebase.</p>
+
+                <div class="details">
+                    75645/75645 semantic transitions were disconnected.
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>Large idle gaps detected</h3>
+
+                    <span
+                        class="badge"
+                        style="background:#ef4444"
+                    >
+                        CRITICAL
+                    </span>
+                </div>
+
+                <p>The session contained long inactive periods between workflow events.</p>
+
+                <div class="details">
+                    3317 idle gap(s) >=30.0s detected; total idle time: 222365.0s.
+                </div>
+            </div>
+            
+</div>
+
+</body>
+</html>

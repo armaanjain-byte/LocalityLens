@@ -1,4 +1,20 @@
+"""Replay viewer HTML generator."""
 
+from __future__ import annotations
+
+from pathlib import Path
+
+
+class ReplayViewer:
+    """Generate replay HTML viewer."""
+
+    def generate(
+        self,
+        output_path: str | Path = "replay_viewer.html",
+    ) -> str:
+        output = Path(output_path)
+
+        html = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -130,3 +146,7 @@ loadFrames();
 
 </body>
 </html>
+"""
+
+        output.write_text(html, encoding="utf-8")
+        return str(output)
