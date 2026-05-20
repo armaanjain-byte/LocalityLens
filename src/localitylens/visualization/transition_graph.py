@@ -2,12 +2,27 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from pathlib import Path
 
 from pyvis.network import Network  # type: ignore[import-untyped]
 
 from localitylens.core.trace import Trace
+
+TOP_NODE_LIMIT = 30
+_ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\[[0-9;]*m")
+
+
+def display_target(event: object) -> str | None:
+    target = getattr(event, "target", None)
+    if not target:
+        return None
+    target_text = _ANSI_RE.sub("", str(target)).strip()
+    if target_text.lower() == "other":
+        kind = getattr(getattr(event, "kind", None), "value", str(getattr(event, "kind", "unknown")))
+        return f"[{kind}]"
+    return target_text
 
 
 def cluster_name(path: str) -> str:
@@ -53,55 +68,50 @@ class TransitionGraphVisualizer:
         net = Network(
             height="900px",
             width="100%",
-            bgcolor="#0b1020",
-            font_color="white",
+            bgcolor="#0d1117",
+            font_color="#c9d1d9",
             directed=True,
         )
 
         edge_counter: Counter[tuple[str, str]] = Counter()
         node_visits: Counter[str] = Counter()
 
-        previous: str | None = None
-
-        # ------------------------------------------------------------------
-        # Build clustered transition graph
-        # ------------------------------------------------------------------
+        sequence: list[str] = []
         for event in trace.events:
-            target = getattr(event, "target", None)
+            target = display_target(event)
+            if target:
+                sequence.append(target)
+                node_visits[target] += 1
 
-            if not target:
+        visible_nodes = {node for node, _count in node_visits.most_common(TOP_NODE_LIMIT)}
+
+        previous: str | None = None
+        for target in sequence:
+            if target not in visible_nodes:
                 continue
-
-            current_cluster = cluster_name(target)
-
-            node_visits[current_cluster] += 1
-
-            if previous:
-                previous_cluster = cluster_name(previous)
-
-                edge_counter[(previous_cluster, current_cluster)] += 1
-
+            if previous and previous != target:
+                edge_counter[(previous, target)] += 1
             previous = target
 
         # ------------------------------------------------------------------
-        # Add clustered nodes
+        # Add high-impact nodes
         # ------------------------------------------------------------------
         added_nodes: set[str] = set()
 
-        for node, visits in node_visits.items():
+        for node, visits in node_visits.most_common(TOP_NODE_LIMIT):
             if node in added_nodes:
                 continue
 
             added_nodes.add(node)
 
             if visits >= 40:
-                color, size = "#ff3b3b", 45
+                color, size = "#da3633", 45
             elif visits >= 20:
-                color, size = "#ff944d", 32
+                color, size = "#fb8500", 32
             elif visits >= 10:
-                color, size = "#ffd24d", 24
+                color, size = "#d29922", 24
             else:
-                color, size = "#66b3ff", 14
+                color, size = "#1f6feb", 14
 
             net.add_node(
                 node,
@@ -123,11 +133,11 @@ class TransitionGraphVisualizer:
             edge_width = min(1 + weight * 0.8, 12)
 
             edge_color = (
-                "#ff5555"
+                "#da3633"
                 if weight >= 10
-                else "#ffaa55"
+                else "#fb8500"
                 if weight >= 5
-                else "#4a90e2"
+                else "#1f6feb"
             )
 
             net.add_edge(
@@ -146,13 +156,19 @@ class TransitionGraphVisualizer:
         {
           "nodes": {
             "font": {
-              "size": 14
+              "size": 14,
+              "color": "#c9d1d9",
+              "face": "Monaco, Menlo, monospace"
             }
           },
 
           "edges": {
+            "color": {
+              "color": "#30363d",
+              "highlight": "#79c0ff"
+            },
             "smooth": {
-              "type": "dynamic"
+              "type": "continuous"
             }
           },
 
@@ -174,7 +190,7 @@ class TransitionGraphVisualizer:
           "interaction": {
             "hover": true,
             "tooltipDelay": 100,
-            "navigationButtons": true,
+            "navigationButtons": false,
             "keyboard": true
           }
         }

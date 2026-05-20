@@ -44,7 +44,7 @@ class ReplayExporter:
 
             if previous is not None:
                 raw_ts = getattr(event, "timestamp", idx)
-                timestamp = raw_ts.isoformat() if hasattr(raw_ts, "isoformat") else raw_ts
+                timestamp = raw_ts.isoformat() if hasattr(raw_ts, "isoformat") else str(raw_ts)
                 frames.append({
                     "step": idx,
                     "timestamp": timestamp,
