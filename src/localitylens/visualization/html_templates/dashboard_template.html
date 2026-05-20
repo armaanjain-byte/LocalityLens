@@ -331,6 +331,173 @@
             display: none !important;
         }
 
+        /* ===== GRAPH TOOLBAR ===== */
+        #graph-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 7px 14px;
+            background-color: #161b22;
+            border-bottom: 1px solid #30363d;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+
+        #graph-toolbar label {
+            font-size: 11px;
+            color: #8b949e;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        #graph-search {
+            flex: 1;
+            min-width: 120px;
+            max-width: 200px;
+            padding: 4px 8px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            color: #c9d1d9;
+            font-size: 11px;
+            font-family: inherit;
+        }
+
+        #graph-search::placeholder { color: #8b949e; }
+
+        .graph-legend {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            font-size: 10px;
+            color: #8b949e;
+            flex-wrap: wrap;
+        }
+
+        .legend-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 3px;
+            vertical-align: middle;
+        }
+
+        /* ===== EXPLAINABILITY PANEL ===== */
+        #explain-panel {
+            position: absolute;
+            top: 52px;
+            right: 12px;
+            width: 276px;
+            background: rgba(13, 17, 23, 0.97);
+            border: 1px solid #444c56;
+            border-radius: 8px;
+            padding: 14px;
+            z-index: 100;
+            display: none;
+            font-size: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        }
+
+        #explain-panel.visible { display: block; }
+
+        #explain-panel h3 {
+            font-size: 13px;
+            font-weight: 700;
+            color: #f0f6fc;
+            margin: 0 0 8px 0;
+            word-break: break-all;
+            padding-right: 24px;
+        }
+
+        .explain-close {
+            position: absolute;
+            top: 10px; right: 10px;
+            background: none;
+            border: none;
+            color: #8b949e;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            padding: 2px 6px;
+        }
+        .explain-close:hover { color: #f0f6fc; }
+
+        .explain-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid #21262d;
+            color: #c9d1d9;
+            gap: 8px;
+        }
+
+        .explain-row:last-of-type { border-bottom: none; }
+        .explain-row .elabel { color: #8b949e; white-space: nowrap; }
+        .explain-row .eval { font-weight: 600; font-family: monospace; text-align: right; word-break: break-all; }
+
+        .explain-reason {
+            margin-top: 10px;
+            padding: 8px;
+            background: #161b22;
+            border-radius: 4px;
+            color: #e2e8f0;
+            line-height: 1.5;
+            font-size: 11px;
+        }
+
+        .churn-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .churn-thrashing      { background: #3d0a0a; color: #ff6b6b; border: 1px solid #da3633; }
+        .churn-high_churn     { background: #3d1a00; color: #ffa94d; border: 1px solid #fb8500; }
+        .churn-moderate_churn { background: #2d2200; color: #ffd700; border: 1px solid #d29922; }
+        .churn-mild_churn     { background: #0a2a12; color: #3fb950; border: 1px solid #1a7f37; }
+        .churn-stable         { background: #0c1a3d; color: #79c0ff; border: 1px solid #1f6feb; }
+
+        /* ===== TIMELINE HEATMAP ===== */
+        #timeline-heatmap {
+            height: 30px;
+            background: #0d1117;
+            border-top: 1px solid #30363d;
+            display: flex;
+            align-items: stretch;
+            overflow: hidden;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        #hm-label {
+            position: absolute;
+            left: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 10px;
+            color: #8b949e;
+            pointer-events: none;
+            z-index: 2;
+            background: rgba(13,17,23,0.7);
+            padding: 0 4px;
+            border-radius: 2px;
+        }
+
+        .hm-cell {
+            flex: 1;
+            min-width: 2px;
+            cursor: pointer;
+            transition: opacity 0.1s;
+        }
+        .hm-cell:hover { opacity: 0.6; }
+
         /* ===== REPLAY TAB CONTENT ===== */
         .replay-content {
             flex: 1;
@@ -495,7 +662,37 @@
 
         <!-- Graph Tab -->
         <div class="tab-content active" id="graph-tab">
-            <div id="network-graph"></div>
+            <!-- Graph Toolbar -->
+            <div id="graph-toolbar">
+                <input id="graph-search" type="text" placeholder="Search file…">
+                <label>Min transitions: <input type="range" id="min-weight-slider" min="1" max="20" value="1" style="width:70px;accent-color:#1f6feb;"> <span id="min-weight-val">1</span></label>
+                <label><input type="checkbox" id="show-osc-only"> Oscillations only</label>
+                <button class="btn btn-secondary" id="fit-graph-btn" style="padding:4px 10px;font-size:11px;">Fit</button>
+                <div class="graph-legend">
+                    <span><span class="legend-dot" style="background:#da3633;"></span>Thrashing</span>
+                    <span><span class="legend-dot" style="background:#fb8500;"></span>High churn</span>
+                    <span><span class="legend-dot" style="background:#d29922;"></span>Moderate</span>
+                    <span><span class="legend-dot" style="background:#1a7f37;"></span>Mild</span>
+                    <span><span class="legend-dot" style="background:#1f6feb;"></span>Stable</span>
+                    <span style="border-left:1px solid #30363d;padding-left:8px;"><span style="display:inline-block;width:20px;height:2px;border-top:2px dashed #da3633;margin-right:3px;vertical-align:middle;"></span>Oscillation edge</span>
+                </div>
+            </div>
+            <!-- Graph Canvas (relative so explain panel positions correctly) -->
+            <div style="flex:1;position:relative;display:flex;flex-direction:column;min-height:0;">
+                <div id="network-graph" style="flex:1;min-height:0;"></div>
+                <!-- Explainability Panel -->
+                <div id="explain-panel">
+                    <button class="explain-close" id="explain-close-btn">✕</button>
+                    <h3 id="explain-filename">filename.py</h3>
+                    <div id="explain-badge"></div>
+                    <div id="explain-rows"></div>
+                    <div class="explain-reason" id="explain-reason"></div>
+                </div>
+            </div>
+            <!-- Timeline Heatmap -->
+            <div id="timeline-heatmap">
+                <span id="hm-label">Timeline churn ▶</span>
+            </div>
         </div>
 
         <!-- Replay Tab -->
@@ -588,6 +785,7 @@
                 initializeReplay();
                 initializeTabs();
                 populateSummary();
+                bindMetricHighlighting();
                 
                 updateFooter('Ready');
                 console.log('[Dashboard] Initialization complete');
@@ -686,6 +884,12 @@
                     metricEl.appendChild(nameEl);
                     metricEl.appendChild(valueEl);
                     metricEl.appendChild(severityEl);
+
+                    const hintEl = document.createElement('div');
+                    hintEl.style.cssText = 'font-size:10px;color:#444c56;margin-top:3px;';
+                    hintEl.textContent = '↗ click to highlight in graph';
+                    metricEl.appendChild(hintEl);
+
                     metricsSection.appendChild(metricEl);
                 });
 
@@ -708,7 +912,7 @@
         }
 
         function initializeGraph() {
-            console.log('[Graph] Initializing vis.js network...');
+            console.log('[Graph] Initializing behavioral vis.js network...');
             
             if (!APP_STATE.graphData) {
                 console.warn('[Graph] No graph data available');
@@ -717,62 +921,51 @@
 
             const container = document.getElementById('network-graph');
             
-            // Extract nodes and edges
             const nodesArray = APP_STATE.graphData.nodes || [];
             const edgesArray = APP_STATE.graphData.edges || [];
 
-            // Create DataSets
             APP_STATE.nodes = new vis.DataSet(nodesArray);
             APP_STATE.edges = new vis.DataSet(edgesArray);
+            APP_STATE._allNodes = nodesArray.slice();
+            APP_STATE._allEdges = edgesArray.slice();
 
-            console.log('[Graph] Creating network with', nodesArray.length, 'nodes and', edgesArray.length, 'edges');
+            console.log('[Graph] Creating behavioral network with', nodesArray.length, 'nodes and', edgesArray.length, 'edges');
 
             const options = {
-                physics: false,
+                physics: {
+                    enabled: true,
+                    solver: 'forceAtlas2Based',
+                    forceAtlas2Based: {
+                        gravitationalConstant: -280,
+                        centralGravity: 0.012,
+                        springLength: 130,
+                        springConstant: 0.06,
+                        damping: 0.4,
+                        avoidOverlap: 0.5
+                    },
+                    stabilization: { iterations: 180, updateInterval: 30 },
+                    timestep: 0.35
+                },
                 interaction: {
                     navigationButtons: false,
                     keyboard: true,
                     zoomView: true,
-                    dragView: true
+                    dragView: true,
+                    hover: true,
+                    tooltipDelay: 80
                 },
                 nodes: {
-                    shape: 'box',
-                    margin: 10,
-                    widthConstraint: {
-                        maximum: 200
-                    },
+                    shape: 'dot',
                     font: {
-                        size: 12,
+                        size: 11,
                         color: '#c9d1d9',
                         face: 'Monaco, Menlo, monospace'
-                    },
-                    color: {
-                        background: '#161b22',
-                        border: '#30363d',
-                        highlight: {
-                            background: '#21262d',
-                            border: '#79c0ff'
-                        }
                     }
                 },
                 edges: {
-                    font: {
-                        size: 10,
-                        color: '#8b949e'
-                    },
-                    color: {
-                        color: '#30363d',
-                        highlight: '#79c0ff'
-                    },
-                    smooth: {
-                        type: 'continuous'
-                    },
-                    arrows: {
-                        to: {
-                            enabled: true,
-                            scaleFactor: 0.5
-                        }
-                    }
+                    smooth: { type: 'dynamic' },
+                    arrows: { to: { enabled: true, scaleFactor: 0.45 } },
+                    font: { size: 0, color: 'transparent' }
                 }
             };
 
@@ -782,24 +975,192 @@
                     edges: APP_STATE.edges
                 }, options);
 
-                APP_STATE.network.on('selectNode', params => {
+                // Disable physics after stabilization
+                APP_STATE.network.once('stabilizationIterationsDone', function() {
+                    APP_STATE.network.setOptions({ physics: { enabled: false } });
+                    APP_STATE.network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+                    console.log('[Graph] Stabilized');
+                });
+
+                // Node click → explainability panel
+                APP_STATE.network.on('selectNode', function(params) {
                     if (params.nodes && params.nodes.length > 0) {
-                        highlightRelatedEvent(params.nodes[0]);
+                        const nodeId = params.nodes[0];
+                        showExplainPanel(nodeId);
+                        highlightRelatedEvent(nodeId);
                     }
                 });
 
-                console.log('[Graph] Network created successfully');
+                APP_STATE.network.on('deselectNode', function() {
+                    // keep panel open, user clicks X to close
+                });
 
-                // Fit to view after network is stabilized
-                setTimeout(() => {
-                    if (APP_STATE.network) {
-                        APP_STATE.network.fit({ animation: false });
-                    }
-                }, 500);
+                console.log('[Graph] Network created successfully');
             } catch (error) {
                 console.error('[Graph] Failed to create network:', error);
                 updateFooter('Graph error: ' + error.message);
             }
+
+            // --- Build timeline heatmap ---
+            buildTimelineHeatmap();
+
+            // --- Graph toolbar controls ---
+            const minSlider = document.getElementById('min-weight-slider');
+            const minValLabel = document.getElementById('min-weight-val');
+            minSlider.addEventListener('input', function() {
+                minValLabel.textContent = this.value;
+                applyGraphFilters();
+            });
+
+            document.getElementById('show-osc-only').addEventListener('change', applyGraphFilters);
+
+            document.getElementById('graph-search').addEventListener('input', function() {
+                const query = this.value.trim().toLowerCase();
+                if (!APP_STATE.nodes) return;
+                const updates = APP_STATE._allNodes.map(n => ({
+                    id: n.id,
+                    opacity: !query || n.id.toLowerCase().includes(query) ? 1 : 0.15
+                }));
+                try { APP_STATE.nodes.update(updates); } catch(e) {}
+            });
+
+            document.getElementById('fit-graph-btn').addEventListener('click', function() {
+                if (APP_STATE.network) APP_STATE.network.fit({ animation: true });
+            });
+
+            document.getElementById('explain-close-btn').addEventListener('click', function() {
+                document.getElementById('explain-panel').classList.remove('visible');
+                if (APP_STATE.network) APP_STATE.network.unselectAll();
+            });
+        }
+
+        function applyGraphFilters() {
+            if (!APP_STATE.nodes || !APP_STATE.edges) return;
+            const minW = parseInt(document.getElementById('min-weight-slider').value, 10) || 1;
+            const oscOnly = document.getElementById('show-osc-only').checked;
+
+            const edgeUpdates = APP_STATE._allEdges.map(e => {
+                const meta = e._meta || {};
+                const hide = meta.weight < minW || (oscOnly && !meta.is_oscillation);
+                return { id: e.id, hidden: hide };
+            });
+            try { APP_STATE.edges.update(edgeUpdates); } catch(e) {}
+        }
+
+        function showExplainPanel(nodeId) {
+            const nodeData = (APP_STATE._allNodes || []).find(n => n.id === nodeId);
+            if (!nodeData) return;
+            const meta = nodeData._meta || {};
+
+            document.getElementById('explain-filename').textContent = nodeId;
+
+            const badge = document.getElementById('explain-badge');
+            const cl = meta.churn_label || 'stable';
+            badge.innerHTML = `<span class="churn-badge churn-${cl}">${cl.replace('_', ' ')}</span>`;
+
+            const rows = [
+                ['Visits', meta.visits],
+                ['Reads', meta.reads],
+                ['Writes', meta.writes],
+                ['Reloads after eviction', meta.reloads],
+                ['Oscillation loops', meta.oscillations],
+                ['Thrash score', (meta.thrash_score || 0).toFixed(3)],
+                ['Betweenness centrality', (meta.betweenness || 0).toFixed(3)],
+                ['PageRank', (meta.pagerank || 0).toFixed(3)],
+                ['Outgoing entropy', (meta.entropy || 0).toFixed(3)],
+                ['Most common transition', meta.most_common_transition || '—'],
+            ];
+
+            document.getElementById('explain-rows').innerHTML = rows.map(([l, v]) =>
+                `<div class="explain-row"><span class="elabel">${escapeHtml(String(l))}</span><span class="eval">${escapeHtml(String(v))}</span></div>`
+            ).join('');
+
+            document.getElementById('explain-reason').textContent = meta.explanation || 'No explanation available.';
+            document.getElementById('explain-panel').classList.add('visible');
+        }
+
+        function buildTimelineHeatmap() {
+            const hm = document.getElementById('timeline-heatmap');
+            const timeline = (APP_STATE.graphData && APP_STATE.graphData.timeline) || [];
+            if (!timeline.length) return;
+
+            timeline.forEach((intensity, i) => {
+                const cell = document.createElement('div');
+                cell.className = 'hm-cell';
+                // interpolate blue(stable) → orange → red(thrashing)
+                let r, g, b;
+                if (intensity < 0.5) {
+                    const t = intensity * 2;
+                    r = Math.round(31 + t * (251-31));
+                    g = Math.round(111 + t * (133-111));
+                    b = Math.round(235 + t * (0-235));
+                } else {
+                    const t = (intensity - 0.5) * 2;
+                    r = Math.round(251 + t * (218-251));
+                    g = Math.round(133 + t * (54-133));
+                    b = 0;
+                }
+                cell.style.background = `rgb(${r},${g},${b})`;
+                cell.style.opacity = '0.7';
+                cell.title = `Bucket ${i+1}: churn intensity ${(intensity*100).toFixed(0)}%`;
+                // Clicking jumps replay to approximate location
+                cell.addEventListener('click', function() {
+                    if (!APP_STATE.replayData) return;
+                    const idx = Math.floor((i / timeline.length) * APP_STATE.replayData.length);
+                    pauseReplay();
+                    APP_STATE.replayIndex = idx;
+                    renderReplayFrame(idx);
+                    updateReplayCounter();
+                    switchTab('replay-tab');
+                });
+                hm.appendChild(cell);
+            });
+        }
+
+        // Metric item click → highlight responsible nodes
+        function bindMetricHighlighting() {
+            document.querySelectorAll('.metric-item').forEach(el => {
+                el.addEventListener('click', function() {
+                    const metricName = this.dataset.metric || '';
+                    highlightNodesForMetric(metricName);
+                    // switch to graph tab
+                    switchTab('graph-tab');
+                });
+            });
+        }
+
+        function highlightNodesForMetric(metricName) {
+            if (!APP_STATE.nodes || !APP_STATE._allNodes) return;
+
+            let scoreFn;
+            if (metricName === 'oscillation_thrashing') {
+                scoreFn = meta => (meta.oscillations || 0) + (meta.reloads || 0);
+            } else if (metricName === 'cognitive_load') {
+                scoreFn = meta => meta.visits || 0;
+            } else if (metricName === 'churn_ratio') {
+                scoreFn = meta => meta.thrash_score || 0;
+            } else if (metricName === 'transition_concentration') {
+                scoreFn = meta => meta.betweenness || 0;
+            } else if (metricName === 'context_entropy') {
+                scoreFn = meta => meta.entropy || 0;
+            } else {
+                // General: highlight by thrash score
+                scoreFn = meta => (meta.thrash_score || 0) * (meta.visits || 0);
+            }
+
+            const scores = APP_STATE._allNodes.map(n => ({ id: n.id, score: scoreFn(n._meta || {}) }));
+            const maxScore = Math.max(...scores.map(s => s.score), 1);
+
+            const updates = scores.map(({ id, score }) => {
+                const opacity = 0.1 + 0.9 * (score / maxScore);
+                return { id, opacity };
+            });
+            try { APP_STATE.nodes.update(updates); } catch(e) {}
+
+            // Select top 3 nodes
+            const top3 = scores.sort((a,b) => b.score - a.score).slice(0,3).map(s => s.id);
+            if (APP_STATE.network) APP_STATE.network.selectNodes(top3);
+            if (top3.length) showExplainPanel(top3[0]);
         }
 
         function initializeReplay() {
