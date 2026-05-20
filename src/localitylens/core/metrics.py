@@ -27,7 +27,10 @@ class MetricNames:
     DEPENDENCY_JUMP_RADIUS = "dependency_jump_radius"
     LOCALITY_SCORE = "locality_score"
     OSCILLATION_THRASHING = "oscillation_thrashing"
+    SEMANTIC_DRIFT = "semantic_drift"
     SEMANTIC_CONTINUITY = "semantic_continuity"
+    RETRIEVAL_PRESSURE = "retrieval_pressure"
+    COGNITIVE_LOAD = "cognitive_load"
     TRANSITION_CONCENTRATION = "transition_concentration"
     WASTE_GAP_COUNT = "waste_gap_count"
 
@@ -50,7 +53,7 @@ class AnalysisReport:
     trace_id: str
     metrics: list[MetricResult] = field(default_factory=list)
     summary: str = ""
-    anomalies: list[dict] = field(default_factory=list)
+    anomalies: list[dict[str, Any]] = field(default_factory=list)
 
     def sort_metrics(self) -> None:
         self.metrics.sort(key=lambda m: m.name)

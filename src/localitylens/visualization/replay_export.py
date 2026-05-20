@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from localitylens.core.trace import Trace
 
@@ -30,7 +31,7 @@ class ReplayExporter:
             The resolved output path string.
         """
         output = Path(output_path)
-        frames: list[dict] = []
+        frames: list[dict[str, Any]] = []
         previous: str | None = None
 
         for idx, event in enumerate(trace.events):
@@ -43,7 +44,7 @@ class ReplayExporter:
 
             if previous is not None:
                 raw_ts = getattr(event, "timestamp", idx)
-                timestamp = raw_ts.isoformat() if hasattr(raw_ts, "isoformat") else raw_ts
+                timestamp = raw_ts.isoformat() if hasattr(raw_ts, "isoformat") else str(raw_ts)
                 frames.append({
                     "step": idx,
                     "timestamp": timestamp,

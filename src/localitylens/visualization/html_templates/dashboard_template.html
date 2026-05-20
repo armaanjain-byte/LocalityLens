@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalityLens Analysis Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" rel="stylesheet" type="text/css" />
+    <style>
+        /* ===== GLOBAL RESET & BASELINE ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #c9d1d9;
+            background-color: #0d1117;
+        }
+
+        /* ===== ROOT LAYOUT CONTAINER ===== */
+        body {
+            display: flex;
+            flex-direction: row;
+        }
+
+        /* ===== SIDEBAR (LEFT COLUMN) ===== */
+        .sidebar {
+            width: 350px;
+            height: 100vh;
+            background-color: #0d1117;
+            border-right: 1px solid #30363d;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid #30363d;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #f0f6fc;
+            margin-bottom: 4px;
+        }
+
+        .sidebar-header p {
+            font-size: 12px;
+            color: #8b949e;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 0;
+        }
+
+        /* ===== METRICS SECTION (SCROLLABLE WITHIN SIDEBAR) ===== */
+        .metrics-section {
+            padding: 12px 16px;
+        }
+
+        .metrics-section-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: #8b949e;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 16px 0 8px 0;
+            padding: 0;
+        }
+
+        .metric-item {
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 150ms linear;
+        }
+
+        .metric-item:hover {
+            background-color: #21262d;
+            border-color: #444c56;
+        }
+
+        .metric-item.critical {
+            border-left: 3px solid #da3633;
+        }
+
+        .metric-item.high {
+            border-left: 3px solid #fb8500;
+        }
+
+        .metric-item.medium {
+            border-left: 3px solid #d29922;
+        }
+
+        .metric-item.low {
+            border-left: 3px solid #238636;
+        }
+
+        .metric-item.ok {
+            border-left: 3px solid #1f6feb;
+        }
+
+        .metric-item.active {
+            background-color: #1f2937;
+            border-color: #79c0ff;
+        }
+
+        .metric-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: #f0f6fc;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: #79c0ff;
+            margin-bottom: 4px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+
+        .metric-severity {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 2px 6px;
+            display: inline-block;
+            border-radius: 3px;
+            background-color: #0d1117;
+        }
+
+        .metric-severity.critical {
+            color: #da3633;
+            border: 1px solid #da3633;
+        }
+
+        .metric-severity.high {
+            color: #fb8500;
+            border: 1px solid #fb8500;
+        }
+
+        .metric-severity.medium {
+            color: #d29922;
+            border: 1px solid #d29922;
+        }
+
+        .metric-severity.low {
+            color: #238636;
+            border: 1px solid #238636;
+        }
+
+        .metric-severity.ok {
+            color: #1f6feb;
+            border: 1px solid #1f6feb;
+        }
+
+        /* ===== SCROLLBAR STYLING ===== */
+        .sidebar-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb {
+            background: #30363d;
+            border-radius: 4px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb:hover {
+            background: #444c56;
+        }
+
+        /* ===== MAIN CONTAINER (RIGHT SIDE) ===== */
+        .main-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ===== TOOLBAR ===== */
+        .toolbar {
+            padding: 12px 16px;
+            background-color: #161b22;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .toolbar-label {
+            font-size: 12px;
+            color: #8b949e;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .toolbar-spacer {
+            flex: 1;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            background-color: #238636;
+            color: #fff;
+            border: 1px solid #238636;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 150ms linear;
+            font-family: inherit;
+        }
+
+        .btn:hover {
+            background-color: #2ea043;
+            border-color: #2ea043;
+        }
+
+        .btn:active {
+            background-color: #238636;
+            border-color: #238636;
+        }
+
+        .btn:disabled {
+            background-color: #30363d;
+            border-color: #30363d;
+            color: #8b949e;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background-color: #21262d;
+            border-color: #30363d;
+            color: #c9d1d9;
+        }
+
+        .btn-secondary:hover {
+            background-color: #30363d;
+            border-color: #444c56;
+        }
+
+        /* ===== TABS ===== */
+        .tabs-container {
+            display: flex;
+            gap: 0;
+            padding: 0 16px;
+            background-color: #161b22;
+            border-bottom: 1px solid #30363d;
+            flex-shrink: 0;
+            height: 44px;
+        }
+
+        .tab {
+            padding: 0 16px;
+            height: 44px;
+            line-height: 44px;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: #8b949e;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 150ms linear;
+            font-family: inherit;
+        }
+
+        .tab:hover {
+            color: #c9d1d9;
+            border-bottom-color: #444c56;
+        }
+
+        .tab.active {
+            color: #79c0ff;
+            border-bottom-color: #79c0ff;
+        }
+
+        /* ===== TAB CONTENT ===== */
+        .tab-content {
+            flex: 1;
+            overflow: hidden;
+            display: none;
+            position: relative;
+        }
+
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ===== GRAPH CANVAS ===== */
+        #network-graph {
+            flex: 1;
+            position: relative;
+            background-color: #0d1117;
+            min-height: 0;
+        }
+
+        .vis-network {
+            background-color: #0d1117;
+        }
+
+        /* Disable green vis.js buttons */
+        .vis-navigation {
+            display: none !important;
+        }
+
+        /* ===== REPLAY TAB CONTENT ===== */
+        .replay-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+            gap: 12px;
+            overflow-y: auto;
+        }
+
+        .replay-info {
+            padding: 12px;
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #8b949e;
+        }
+
+        .replay-info-title {
+            font-weight: 600;
+            color: #f0f6fc;
+            margin-bottom: 4px;
+        }
+
+        .replay-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding: 12px;
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+        }
+
+        .timeline-input {
+            flex: 1 1 220px;
+            min-width: 180px;
+            accent-color: #1f6feb;
+        }
+
+        .replay-status {
+            padding: 12px;
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #8b949e;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+
+        .replay-status-title {
+            font-weight: 600;
+            color: #f0f6fc;
+            margin-bottom: 4px;
+        }
+
+        .event-list {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            border: 1px solid #30363d;
+            background-color: #0d1117;
+        }
+
+        .event-row {
+            display: grid;
+            grid-template-columns: 72px 1fr 110px;
+            gap: 8px;
+            width: 100%;
+            padding: 6px 10px;
+            border: 0;
+            border-bottom: 1px solid #21262d;
+            background: transparent;
+            color: #8b949e;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 11px;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .event-row.active {
+            color: #f0f6fc;
+            background-color: #1f2937;
+        }
+
+        .event-path {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ===== SUMMARY TAB CONTENT ===== */
+        .summary-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .summary-section {
+            margin-bottom: 20px;
+            padding: 12px;
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+        }
+
+        .summary-section-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #79c0ff;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .summary-text {
+            font-size: 12px;
+            color: #c9d1d9;
+            line-height: 1.6;
+        }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            padding: 8px 16px;
+            background-color: #161b22;
+            border-top: 1px solid #30363d;
+            font-size: 11px;
+            color: #8b949e;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- ===== SIDEBAR ===== -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2>LocalityLens</h2>
+            <p id="trace-id">Trace ID: Loading...</p>
+        </div>
+        <div class="sidebar-content" id="sidebar-content">
+            <!-- Metrics will be injected here -->
+        </div>
+    </div>
+
+    <!-- ===== MAIN CONTAINER ===== -->
+    <div class="main-container">
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <span class="toolbar-label">Analysis Report</span>
+            <div class="toolbar-spacer"></div>
+            <button class="btn btn-secondary" id="export-btn">Export JSON</button>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs-container">
+            <button class="tab active" data-tab="graph-tab">Transition Graph</button>
+            <button class="tab" data-tab="replay-tab">Event Replay</button>
+            <button class="tab" data-tab="summary-tab">Summary</button>
+        </div>
+
+        <!-- Graph Tab -->
+        <div class="tab-content active" id="graph-tab">
+            <div id="network-graph"></div>
+        </div>
+
+        <!-- Replay Tab -->
+        <div class="tab-content" id="replay-tab">
+            <div class="replay-content">
+                <div class="replay-info">
+                    <div class="replay-info-title">Event Replay</div>
+                    <p>Step through events one by one to visualize agent behavior.</p>
+                </div>
+                <div class="replay-controls">
+                    <button class="btn" id="replay-play-btn">Play</button>
+                    <button class="btn btn-secondary" id="replay-pause-btn" disabled>Pause</button>
+                    <button class="btn btn-secondary" id="replay-reset-btn">Reset</button>
+                    <input class="timeline-input" id="replay-slider" type="range" min="0" max="0" value="0">
+                    <span style="flex: 1;"></span>
+                    <span id="replay-counter" style="padding: 6px 12px; background-color: #0d1117; border: 1px solid #30363d; border-radius: 4px; font-family: monospace; color: #79c0ff;">0 / 0</span>
+                </div>
+                <div class="replay-status">
+                    <div class="replay-status-title">Status</div>
+                    <p id="replay-status-text">Waiting for data...</p>
+                </div>
+                <div class="event-list" id="event-list"></div>
+            </div>
+        </div>
+
+        <!-- Summary Tab -->
+        <div class="tab-content" id="summary-tab">
+            <div class="summary-content">
+                <div class="summary-section">
+                    <div class="summary-section-title">Overall Assessment</div>
+                    <p class="summary-text" id="summary-verdict">Loading...</p>
+                </div>
+                <div class="summary-section">
+                    <div class="summary-section-title">Key Findings</div>
+                    <p class="summary-text" id="summary-findings">Loading...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <span id="footer-text">Ready</span>
+        </div>
+    </div>
+
+    <!-- ===== DATA INJECTION POINT ===== -->
+    <script type="application/json" id="metrics-data">
+        {{ METRICS_DATA }}
+    </script>
+    <script type="application/json" id="graph-data">
+        {{ GRAPH_DATA }}
+    </script>
+    <script type="application/json" id="replay-data">
+        {{ REPLAY_JSON_DATA }}
+    </script>
+
+    <!-- ===== JAVASCRIPT ===== -->
+    <script>
+        // ===== GLOBAL STATE =====
+        const APP_STATE = {
+            metricsData: null,
+            graphData: null,
+            replayData: null,
+            network: null,
+            nodes: null,
+            edges: null,
+            isReplayRunning: false,
+            replayIndex: 0,
+            replayInterval: null,
+            activeNodeIds: [],
+            activeEdgeId: null
+        };
+
+        // ===== INITIALIZATION =====
+        window.addEventListener('load', function() {
+            console.log('[Dashboard] Window load event fired');
+            initializeApp();
+        });
+
+        function initializeApp() {
+            console.log('[Dashboard] Initializing application...');
+            
+            try {
+                // Parse JSON data from script tags
+                parseDataFromDOM();
+                
+                // Initialize UI
+                initializeMetrics();
+                initializeGraph();
+                initializeReplay();
+                initializeTabs();
+                populateSummary();
+                
+                updateFooter('Ready');
+                console.log('[Dashboard] Initialization complete');
+            } catch (error) {
+                console.error('[Dashboard] Initialization error:', error);
+                updateFooter('Error: ' + error.message);
+            }
+        }
+
+        function parseDataFromDOM() {
+            console.log('[Parser] Starting data extraction from DOM...');
+            
+            // Parse metrics data
+            const metricsElement = document.getElementById('metrics-data');
+            if (metricsElement && metricsElement.textContent.trim()) {
+                try {
+                    APP_STATE.metricsData = JSON.parse(metricsElement.textContent);
+                    console.log('[Parser] Metrics data parsed successfully:', APP_STATE.metricsData);
+                } catch (e) {
+                    console.warn('[Parser] Metrics data parse error:', e);
+                    APP_STATE.metricsData = null;
+                }
+            }
+
+            // Parse graph data
+            const graphElement = document.getElementById('graph-data');
+            if (graphElement && graphElement.textContent.trim()) {
+                try {
+                    APP_STATE.graphData = JSON.parse(graphElement.textContent);
+                    console.log('[Parser] Graph data parsed successfully:', APP_STATE.graphData);
+                } catch (e) {
+                    console.warn('[Parser] Graph data parse error:', e);
+                    APP_STATE.graphData = null;
+                }
+            }
+
+            // Parse replay data
+            const replayElement = document.getElementById('replay-data');
+            if (replayElement && replayElement.textContent.trim()) {
+                try {
+                    const rawText = replayElement.textContent.trim();
+                    APP_STATE.replayData = JSON.parse(rawText);
+                    console.log('[Parser] Replay data parsed successfully. Frame count:', 
+                        Array.isArray(APP_STATE.replayData) ? APP_STATE.replayData.length : 'not an array');
+                } catch (e) {
+                    console.warn('[Parser] Replay data parse error:', e);
+                    console.warn('[Parser] Raw text (first 200 chars):', replayElement.textContent.substring(0, 200));
+                    APP_STATE.replayData = null;
+                }
+            }
+
+            // Validate we have at least one data source
+            if (!APP_STATE.metricsData && !APP_STATE.graphData && !APP_STATE.replayData) {
+                throw new Error('No valid data found in DOM');
+            }
+        }
+
+        function initializeMetrics() {
+            console.log('[Metrics] Initializing metrics display...');
+            
+            if (!APP_STATE.metricsData) {
+                console.warn('[Metrics] No metrics data available');
+                return;
+            }
+
+            const sidebarContent = document.getElementById('sidebar-content');
+            sidebarContent.innerHTML = '';
+
+            // Set trace ID
+            if (APP_STATE.metricsData.trace_id) {
+                document.getElementById('trace-id').textContent = 'Trace ID: ' + APP_STATE.metricsData.trace_id;
+            }
+
+            // Render metrics
+            if (APP_STATE.metricsData.metrics && Array.isArray(APP_STATE.metricsData.metrics)) {
+                const metricsSection = document.createElement('div');
+                metricsSection.className = 'metrics-section';
+
+                APP_STATE.metricsData.metrics.forEach(metric => {
+                    const metricEl = document.createElement('div');
+                    metricEl.className = 'metric-item ' + (metric.severity || 'ok');
+                    metricEl.dataset.metric = metric.name || '';
+
+                    const nameEl = document.createElement('div');
+                    nameEl.className = 'metric-name';
+                    nameEl.textContent = metric.name || 'Unknown';
+
+                    const valueEl = document.createElement('div');
+                    valueEl.className = 'metric-value';
+                    valueEl.textContent = formatMetricValue(metric.value);
+
+                    const severityEl = document.createElement('div');
+                    severityEl.className = 'metric-severity ' + (metric.severity || 'ok');
+                    severityEl.textContent = (metric.severity || 'OK').toUpperCase();
+
+                    metricEl.appendChild(nameEl);
+                    metricEl.appendChild(valueEl);
+                    metricEl.appendChild(severityEl);
+                    metricsSection.appendChild(metricEl);
+                });
+
+                sidebarContent.appendChild(metricsSection);
+                console.log('[Metrics] Rendered ' + APP_STATE.metricsData.metrics.length + ' metrics');
+            }
+        }
+
+        function formatMetricValue(value) {
+            if (typeof value === 'number') {
+                if (value > 100 || value < 0.01) {
+                    return value.toFixed(2);
+                }
+                if (value < 1) {
+                    return value.toFixed(4);
+                }
+                return value.toFixed(2);
+            }
+            return String(value);
+        }
+
+        function initializeGraph() {
+            console.log('[Graph] Initializing vis.js network...');
+            
+            if (!APP_STATE.graphData) {
+                console.warn('[Graph] No graph data available');
+                return;
+            }
+
+            const container = document.getElementById('network-graph');
+            
+            // Extract nodes and edges
+            const nodesArray = APP_STATE.graphData.nodes || [];
+            const edgesArray = APP_STATE.graphData.edges || [];
+
+            // Create DataSets
+            APP_STATE.nodes = new vis.DataSet(nodesArray);
+            APP_STATE.edges = new vis.DataSet(edgesArray);
+
+            console.log('[Graph] Creating network with', nodesArray.length, 'nodes and', edgesArray.length, 'edges');
+
+            const options = {
+                physics: false,
+                interaction: {
+                    navigationButtons: false,
+                    keyboard: true,
+                    zoomView: true,
+                    dragView: true
+                },
+                nodes: {
+                    shape: 'box',
+                    margin: 10,
+                    widthConstraint: {
+                        maximum: 200
+                    },
+                    font: {
+                        size: 12,
+                        color: '#c9d1d9',
+                        face: 'Monaco, Menlo, monospace'
+                    },
+                    color: {
+                        background: '#161b22',
+                        border: '#30363d',
+                        highlight: {
+                            background: '#21262d',
+                            border: '#79c0ff'
+                        }
+                    }
+                },
+                edges: {
+                    font: {
+                        size: 10,
+                        color: '#8b949e'
+                    },
+                    color: {
+                        color: '#30363d',
+                        highlight: '#79c0ff'
+                    },
+                    smooth: {
+                        type: 'continuous'
+                    },
+                    arrows: {
+                        to: {
+                            enabled: true,
+                            scaleFactor: 0.5
+                        }
+                    }
+                }
+            };
+
+            try {
+                APP_STATE.network = new vis.Network(container, {
+                    nodes: APP_STATE.nodes,
+                    edges: APP_STATE.edges
+                }, options);
+
+                APP_STATE.network.on('selectNode', params => {
+                    if (params.nodes && params.nodes.length > 0) {
+                        highlightRelatedEvent(params.nodes[0]);
+                    }
+                });
+
+                console.log('[Graph] Network created successfully');
+
+                // Fit to view after network is stabilized
+                setTimeout(() => {
+                    if (APP_STATE.network) {
+                        APP_STATE.network.fit({ animation: false });
+                    }
+                }, 500);
+            } catch (error) {
+                console.error('[Graph] Failed to create network:', error);
+                updateFooter('Graph error: ' + error.message);
+            }
+        }
+
+        function initializeReplay() {
+            console.log('[Replay] Initializing replay system...');
+            
+            if (!APP_STATE.replayData || !Array.isArray(APP_STATE.replayData)) {
+                console.warn('[Replay] No valid replay data available');
+                document.getElementById('replay-status-text').textContent = 'No replay data available';
+                return;
+            }
+
+            console.log('[Replay] Found', APP_STATE.replayData.length, 'frames');
+            
+            if (APP_STATE.replayData.length === 0) {
+                document.getElementById('replay-status-text').textContent = 'No frames in replay data';
+                return;
+            }
+
+            const slider = document.getElementById('replay-slider');
+            slider.max = String(Math.max(APP_STATE.replayData.length - 1, 0));
+            slider.value = '0';
+            slider.addEventListener('input', () => {
+                pauseReplay();
+                APP_STATE.replayIndex = Number(slider.value);
+                renderReplayFrame(APP_STATE.replayIndex);
+            });
+
+            renderEventList();
+            updateReplayCounter();
+            document.getElementById('replay-status-text').textContent = 'Ready to replay';
+        }
+
+        function initializeTabs() {
+            console.log('[Tabs] Initializing tab system...');
+            
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabName = this.getAttribute('data-tab');
+                    switchTab(tabName);
+                });
+            });
+
+            console.log('[Tabs] Registered', tabs.length, 'tabs');
+        }
+
+        function switchTab(tabName) {
+            console.log('[Tabs] Switching to tab:', tabName);
+            
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName).classList.add('active');
+
+            // Trigger graph resize if switching to graph tab
+            if (tabName === 'graph-tab' && APP_STATE.network) {
+                setTimeout(() => {
+                    console.log('[Graph] Forcing network resize');
+                    APP_STATE.network.setSize('100%', '100%');
+                    APP_STATE.network.fit({ animation: false });
+                }, 100);
+            }
+        }
+
+        // ===== REPLAY CONTROLS =====
+        document.getElementById('replay-play-btn').addEventListener('click', startReplay);
+        document.getElementById('replay-pause-btn').addEventListener('click', pauseReplay);
+        document.getElementById('replay-reset-btn').addEventListener('click', resetReplay);
+        document.getElementById('export-btn').addEventListener('click', exportData);
+
+        function startReplay() {
+            console.log('[Replay] Starting replay...');
+            
+            if (!APP_STATE.replayData || APP_STATE.replayData.length === 0) {
+                console.error('[Replay] No replay data available');
+                updateFooter('Error: No replay data');
+                return;
+            }
+
+            if (APP_STATE.isReplayRunning) {
+                console.log('[Replay] Already running');
+                return;
+            }
+
+            APP_STATE.isReplayRunning = true;
+            document.getElementById('replay-play-btn').disabled = true;
+            document.getElementById('replay-pause-btn').disabled = false;
+            document.getElementById('replay-status-text').textContent = 'Playing...';
+
+            function playNextFrame() {
+                if (!APP_STATE.isReplayRunning || APP_STATE.replayIndex >= APP_STATE.replayData.length) {
+                    if (APP_STATE.replayIndex >= APP_STATE.replayData.length) {
+                        console.log('[Replay] Replay finished');
+                        pauseReplay();
+                        document.getElementById('replay-status-text').textContent = 'Replay finished';
+                    }
+                    return;
+                }
+
+                const frame = APP_STATE.replayData[APP_STATE.replayIndex];
+                renderReplayFrame(APP_STATE.replayIndex);
+
+                APP_STATE.replayIndex++;
+                updateReplayCounter();
+                document.getElementById('replay-status-text').textContent =
+                    'Frame ' + APP_STATE.replayIndex + ': ' + frame.from + ' -> ' + frame.to;
+
+                // Schedule next frame (200ms interval)
+                APP_STATE.replayInterval = setTimeout(playNextFrame, 200);
+            }
+
+            playNextFrame();
+        }
+
+        function pauseReplay() {
+            console.log('[Replay] Pausing replay');
+            
+            APP_STATE.isReplayRunning = false;
+            if (APP_STATE.replayInterval) {
+                clearTimeout(APP_STATE.replayInterval);
+                APP_STATE.replayInterval = null;
+            }
+
+            document.getElementById('replay-play-btn').disabled = false;
+            document.getElementById('replay-pause-btn').disabled = true;
+            document.getElementById('replay-status-text').textContent = 'Paused at frame ' + APP_STATE.replayIndex;
+        }
+
+        function resetReplay() {
+            console.log('[Replay] Resetting replay');
+            
+            pauseReplay();
+            APP_STATE.replayIndex = 0;
+            updateReplayCounter();
+            clearReplayHighlight();
+            
+            // Reset graph to initial state
+            if (APP_STATE.graphData && APP_STATE.nodes && APP_STATE.edges) {
+                try {
+                    APP_STATE.nodes.clear();
+                    APP_STATE.edges.clear();
+                    
+                    if (APP_STATE.graphData.nodes) {
+                        APP_STATE.nodes.add(APP_STATE.graphData.nodes);
+                    }
+                    if (APP_STATE.graphData.edges) {
+                        APP_STATE.edges.add(APP_STATE.graphData.edges);
+                    }
+                    
+                    if (APP_STATE.network) {
+                        APP_STATE.network.fit({ animation: false });
+                    }
+                    
+                    document.getElementById('replay-status-text').textContent = 'Reset complete';
+                } catch (e) {
+                    console.error('[Replay] Error resetting graph:', e);
+                }
+            }
+        }
+
+        function updateReplayCounter() {
+            const total = APP_STATE.replayData ? APP_STATE.replayData.length : 0;
+            document.getElementById('replay-counter').textContent = APP_STATE.replayIndex + ' / ' + total;
+            const slider = document.getElementById('replay-slider');
+            if (slider && total > 0) {
+                slider.value = String(Math.min(APP_STATE.replayIndex, total - 1));
+            }
+        }
+
+        function renderReplayFrame(index) {
+            if (!APP_STATE.replayData || APP_STATE.replayData.length === 0) return;
+            const boundedIndex = Math.max(0, Math.min(index, APP_STATE.replayData.length - 1));
+            const frame = APP_STATE.replayData[boundedIndex];
+            highlightTransition(frame.from, frame.to);
+            setActiveEventRow(boundedIndex);
+            document.getElementById('replay-status-text').textContent =
+                frame.event_type + ': ' + frame.from + ' -> ' + frame.to;
+        }
+
+        function clearReplayHighlight() {
+            if (APP_STATE.nodes && APP_STATE.activeNodeIds.length > 0) {
+                APP_STATE.activeNodeIds.forEach(id => {
+                    if (APP_STATE.nodes.get(id)) {
+                        APP_STATE.nodes.update({ id, borderWidth: 1, color: undefined });
+                    }
+                });
+            }
+            if (APP_STATE.edges && APP_STATE.activeEdgeId && APP_STATE.edges.get(APP_STATE.activeEdgeId)) {
+                APP_STATE.edges.update({ id: APP_STATE.activeEdgeId, color: undefined, width: undefined });
+            }
+            APP_STATE.activeNodeIds = [];
+            APP_STATE.activeEdgeId = null;
+            setActiveEventRow(-1);
+        }
+
+        function highlightTransition(from, to) {
+            if (!APP_STATE.nodes || !APP_STATE.edges) return;
+            clearReplayHighlight();
+            [from, to].forEach(id => {
+                if (APP_STATE.nodes.get(id)) {
+                    APP_STATE.nodes.update({
+                        id,
+                        borderWidth: 3,
+                        color: {
+                            background: '#1f2937',
+                            border: '#79c0ff',
+                            highlight: { background: '#1f2937', border: '#79c0ff' }
+                        }
+                    });
+                    APP_STATE.activeNodeIds.push(id);
+                }
+            });
+            const edgeId = from + '->' + to;
+            if (APP_STATE.edges.get(edgeId)) {
+                APP_STATE.edges.update({ id: edgeId, color: '#f2cc60', width: 5 });
+                APP_STATE.activeEdgeId = edgeId;
+            }
+        }
+
+        function renderEventList() {
+            const list = document.getElementById('event-list');
+            list.innerHTML = '';
+            const frames = APP_STATE.replayData || [];
+            const maxRows = Math.min(frames.length, 500);
+            for (let i = 0; i < maxRows; i++) {
+                const frame = frames[i];
+                const row = document.createElement('button');
+                row.className = 'event-row';
+                row.type = 'button';
+                row.dataset.index = String(i);
+                row.innerHTML = '<span>#' + frame.step + '</span><span class="event-path">' +
+                    escapeHtml(frame.from + ' -> ' + frame.to) + '</span><span>' +
+                    escapeHtml(frame.event_type || 'event') + '</span>';
+                row.addEventListener('click', () => {
+                    pauseReplay();
+                    APP_STATE.replayIndex = i;
+                    renderReplayFrame(i);
+                    updateReplayCounter();
+                });
+                list.appendChild(row);
+            }
+        }
+
+        function setActiveEventRow(index) {
+            document.querySelectorAll('.event-row.active').forEach(row => row.classList.remove('active'));
+            const row = document.querySelector('.event-row[data-index="' + index + '"]');
+            if (row) {
+                row.classList.add('active');
+                row.scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function highlightRelatedEvent(nodeId) {
+            if (!APP_STATE.replayData) return;
+            const index = APP_STATE.replayData.findIndex(frame => frame.from === nodeId || frame.to === nodeId);
+            if (index >= 0) {
+                APP_STATE.replayIndex = index;
+                renderReplayFrame(index);
+                updateReplayCounter();
+            }
+        }
+
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[char]));
+        }
+
+        function exportData() {
+            console.log('[Export] Exporting data...');
+            
+            const exportObj = {
+                metrics: APP_STATE.metricsData,
+                graph: APP_STATE.graphData,
+                replay: APP_STATE.replayData
+            };
+
+            const dataStr = JSON.stringify(exportObj, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'localitylens-export.json';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            updateFooter('Data exported');
+        }
+
+        function updateFooter(message) {
+            document.getElementById('footer-text').textContent = message;
+        }
+
+        // ===== SUMMARY TAB POPULATION =====
+        function populateSummary() {
+            if (!APP_STATE.metricsData) return;
+
+            const verdict = APP_STATE.metricsData.summary || 'Analysis complete.';
+            document.getElementById('summary-verdict').textContent = verdict;
+
+            if (APP_STATE.metricsData.metrics && APP_STATE.metricsData.metrics.length > 0) {
+                const criticalCount = APP_STATE.metricsData.metrics.filter(m => m.severity === 'critical').length;
+                const highCount = APP_STATE.metricsData.metrics.filter(m => m.severity === 'high').length;
+                
+                let findings = '';
+                if (criticalCount > 0) {
+                    findings += criticalCount + ' critical issue(s). ';
+                }
+                if (highCount > 0) {
+                    findings += highCount + ' high severity issue(s). ';
+                }
+                if (criticalCount === 0 && highCount === 0) {
+                    findings = 'No critical or high severity issues detected.';
+                }
+
+                document.getElementById('summary-findings').textContent = findings;
+            }
+        }
+
+    </script>
+</body>
+</html>

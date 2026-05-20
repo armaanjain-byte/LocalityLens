@@ -135,6 +135,18 @@
             cursor: pointer;
             transition: 0.2s ease;
         }
+        
+        
+        /* Override PyVis hardcoded garbage */
+        .card { background: transparent !important; border: none !important; }
+        .card-body { padding: 0 !important; }
+        #mynetwork { 
+        border: none !important; 
+        background-color: transparent !important; 
+        height: 100vh !important; 
+        width: 100vw !important;
+        }
+        .vis-network { outline: none !important; }
 
         button:hover {
             transform: translateY(-1px);

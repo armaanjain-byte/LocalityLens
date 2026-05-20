@@ -2,244 +2,240 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>LocalityLens Replay</title>
-
+<title>LocalityLens — Temporal Replay Diagnostics</title>
 <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-
 <style>
-body {
-    margin: 0;
-    background: #0b1020;
-    color: white;
-    font-family: Arial;
-}
+    :root {
+        --bg-main: #020617;
+        --bg-panel: rgba(15, 23, 42, 0.85);
+        --accent: #3b82f6;
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+    }
+    body {
+        margin: 0;
+        background: radial-gradient(circle at top, #0f172a 0%, var(--bg-main) 100%);
+        color: var(--text-main);
+        font-family: Inter, system-ui, sans-serif;
+        overflow: hidden;
+    }
+    #mynetwork {
+        width: 100vw;
+        height: 100vh;
+        position: absolute;
+        top: 0; left: 0;
+        z-index: 1;
+    }
+    /* Floating Control Panel */
+    #dashboard {
+        position: absolute;
+        top: 20px; left: 20px;
+        width: 340px;
+        background: var(--bg-panel);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 16px;
+        padding: 20px;
+        z-index: 10;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    h2 { margin: 0 0 15px 0; font-size: 1.2rem; }
+    .controls { display: flex; gap: 8px; margin-bottom: 15px; }
+    button {
+        flex: 1;
+        background: #1e293b;
+        border: 1px solid rgba(255,255,255,0.2);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+    button:hover { background: var(--accent); }
+    button.primary { background: var(--accent); border-color: var(--accent); }
+    
+    /* Scrubber */
+    .slider-container { margin-bottom: 20px; }
+    #timeline { width: 100%; cursor: pointer; }
+    .progress-text { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-top: 5px; }
 
-#controls {
-    padding: 10px;
-    background: #111827;
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-button {
-    background: #2563eb;
-    border: none;
-    color: white;
-    padding: 8px 14px;
-    border-radius: 6px;
-    cursor: pointer;
-}
-
-button:hover {
-    background: #1d4ed8;
-}
-
-#status {
-    margin-left: 20px;
-}
-
-#mynetwork {
-    width: 100vw;
-    height: calc(100vh - 60px);
-    background: #050816;
-}
+    /* Live Analytics */
+    .stat-box {
+        background: rgba(0,0,0,0.3);
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 10px;
+        font-size: 0.9rem;
+    }
+    .stat-label { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-value { font-weight: bold; margin-top: 4px; display: flex; justify-content: space-between;}
+    .warning { color: #ef4444; font-weight: bold; animation: pulse 1s infinite; display: none; }
+    
+    /* Event Log */
+    #event-log {
+        height: 120px;
+        overflow-y: hidden;
+        background: rgba(0,0,0,0.3);
+        border-radius: 8px;
+        padding: 10px;
+        font-family: monospace;
+        font-size: 0.75rem;
+        color: #cbd5e1;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+    }
+    .log-entry { margin-top: 4px; opacity: 0.5; }
+    .log-entry:last-child { opacity: 1; color: #60a5fa; font-weight: bold; }
+    
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 </style>
 </head>
-
 <body>
 
-<div id="controls">
-    <button onclick="play()">Play</button>
-    <button onclick="pause()">Pause</button>
-    <button onclick="stepForward()">Step</button>
+<div id="dashboard">
+    <h2>Agent Replay Diagnostics</h2>
+    
+    <div class="controls">
+        <button class="primary" onclick="togglePlay()" id="playBtn">Play ▶</button>
+        <button onclick="stepForward()">Step ⏭</button>
+    </div>
 
-    <span id="status">Loading...</span>
+    <div class="slider-container">
+        <input type="range" id="timeline" min="0" value="0" step="1" oninput="scrubTo(this.value)">
+        <div class="progress-text">
+            <span id="current-step">Step 0</span>
+            <span id="total-steps">/ 0</span>
+        </div>
+    </div>
+
+    <div class="stat-box">
+        <div class="stat-label">Current Focus (Hotspot)</div>
+        <div class="stat-value"><span id="active-node">-</span> <span id="node-visits">0 visits</span></div>
+    </div>
+    
+    <div class="stat-box">
+        <div class="stat-label">Agent Status</div>
+        <div class="stat-value">
+            <span id="agent-status">Exploring...</span>
+            <span class="warning" id="thrash-warning">⚠️ THRASHING</span>
+        </div>
+    </div>
+
+    <div class="stat-label" style="margin-bottom: 5px;">Recent Actions</div>
+    <div id="event-log"></div>
 </div>
 
 <div id="mynetwork"></div>
 
 <script>
-
 let frames = [];
 let current = 0;
 let timer = null;
+let isPlaying = false;
+
+// Global State for Analytics
+let globalNodeVisits = {};
+let eventHistory = [];
 
 const nodes = new vis.DataSet([]);
 const edges = new vis.DataSet([]);
-
-const container = document.getElementById("mynetwork");
-
-const data = {
-    nodes: nodes,
-    edges: edges
-};
-
-const options = {
-    physics: {
-        stabilization: false,
-        barnesHut: {
-            gravitationalConstant: -2000,
-            springLength: 120
-        }
-    },
-
-    nodes: {
-        shape: "dot",
-        size: 12,
-        font: {
-            color: "white"
-        }
-    },
-
-    edges: {
-        arrows: "to",
-        color: {
-            color: "#4ea1ff"
-        },
-        smooth: true
-    },
-
-    interaction: {
-        hover: true
-    }
-};
-
-const network = new vis.Network(container, data, options);
-
-fetch("replay_frames.json")
-.then(res => res.json())
-.then(data => {
-
-    frames = data;
-
-    document.getElementById("status").innerText =
-        `Loaded ${frames.length} frames`;
-
+const network = new vis.Network(document.getElementById("mynetwork"), {nodes, edges}, {
+    physics: { barnesHut: { gravitationalConstant: -3000, springLength: 150, damping: 0.1 } },
+    nodes: { shape: "dot", font: { color: "white", size: 12 }, borderWidth: 2 },
+    edges: { arrows: "to", smooth: { type: "continuous" } }
 });
 
-function ensureNode(id) {
+fetch("replay_frames.json").then(res => res.json()).then(data => {
+    frames = data;
+    document.getElementById("timeline").max = frames.length;
+    document.getElementById("total-steps").innerText = `/ ${frames.length}`;
+    if(frames.length > 0) renderUpTo(1); // Show first frame
+});
 
-    if (!nodes.get(id)) {
-
-        nodes.add({
-            id: id,
-            label: id.split("/").pop(),
-            color: "#66b3ff"
-        });
+function togglePlay() {
+    isPlaying = !isPlaying;
+    document.getElementById("playBtn").innerText = isPlaying ? "Pause ⏸" : "Play ▶";
+    if (isPlaying) {
+        timer = setInterval(() => {
+            if (current >= frames.length) return togglePlay();
+            stepForward();
+        }, 150); // Adjust speed here
+    } else {
+        clearInterval(timer);
     }
-}
-
-function renderFrame(frame) {
-
-    ensureNode(frame.from);
-    ensureNode(frame.to);
-
-    const nodeVisits = {};
-
-function renderFrame(frame) {
-
-    ensureNode(frame.from);
-    ensureNode(frame.to);
-
-    nodeVisits[frame.to] =
-        (nodeVisits[frame.to] || 0) + 1;
-
-    const visits = nodeVisits[frame.to];
-
-    let color = "#66b3ff";
-    let size = 12;
-
-    if (visits > 250) {
-        color = "#ff3b3b";
-        size = 42;
-    }
-
-    else if (visits > 120) {
-        color = "#ff944d";
-        size = 30;
-    }
-
-    else if (visits > 40) {
-        color = "#ffd24d";
-        size = 22;
-    }
-
-    nodes.update({
-        id: frame.to,
-        color: color,
-        size: size
-    });
-
-    edges.add({
-        id: current,
-        from: frame.from,
-        to: frame.to,
-        color: "#4ea1ff"
-    });
-
-    document.getElementById("status").innerText =
-        `Step ${frame.step}
-         | ${frame.event_type}
-         | ${frame.from.split("/").pop()}
-         → ${frame.to.split("/").pop()}
-         | visits=${visits}`;
-}
-
-    nodes.update({
-        id: frame.to,
-        color: "#ff4d4d",
-        size: 28
-    });
-
-    edges.add({
-        id: current,
-        from: frame.from,
-        to: frame.to,
-        color: "#4ea1ff"
-    });
-
-    document.getElementById("status").innerText =
-        `Step ${frame.step} | ${frame.event_type}
-         | ${frame.from.split("/").pop()}
-         → ${frame.to.split("/").pop()}`;
 }
 
 function stepForward() {
-
-    if (current >= frames.length)
-        return;
-
-    renderFrame(frames[current]);
-
-    current++;
+    if (current < frames.length) renderUpTo(current + 1);
 }
 
-function play() {
+function scrubTo(step) {
+    renderUpTo(parseInt(step));
+}
 
-    if (timer)
-        return;
+function renderUpTo(targetStep) {
+    // If going backwards, we must clear and recalculate
+    if (targetStep < current) {
+        nodes.clear(); edges.clear();
+        globalNodeVisits = {};
+        eventHistory = [];
+        document.getElementById("event-log").innerHTML = "";
+        current = 0;
+    }
 
-    timer = setInterval(() => {
+    // Fast-forward to target step
+    while (current < targetStep) {
+        const frame = frames[current];
+        
+        // Ensure Nodes exist
+        if (!nodes.get(frame.from)) nodes.add({ id: frame.from, label: frame.from.split("/").pop(), color: "#334155" });
+        if (!nodes.get(frame.to)) nodes.add({ id: frame.to, label: frame.to.split("/").pop(), color: "#334155" });
 
-        if (current >= frames.length) {
+        // Update Analytics
+        globalNodeVisits[frame.to] = (globalNodeVisits[frame.to] || 0) + 1;
+        let visits = globalNodeVisits[frame.to];
 
-            pause();
-            return;
+        // Color coding based on heat
+        let color = "#3b82f6"; let size = 15;
+        if (visits > 20) { color = "#ef4444"; size = 35; }
+        else if (visits > 10) { color = "#f97316"; size = 25; }
+        
+        nodes.update({ id: frame.to, color: color, size: size, font: {size: Math.min(12 + visits, 24)} });
+        
+        // Draw Edge
+        edges.add({ id: current, from: frame.from, to: frame.to, color: { color: color, opacity: 0.6 } });
+        
+        // Update Log
+        const shortFrom = frame.from.split("/").pop();
+        const shortTo = frame.to.split("/").pop();
+        eventHistory.push(`[${frame.event_type}] ${shortFrom} → ${shortTo}`);
+        if(eventHistory.length > 5) eventHistory.shift();
+
+        // Update UI
+        document.getElementById("active-node").innerText = shortTo;
+        document.getElementById("node-visits").innerText = `${visits} visits`;
+        document.getElementById("event-log").innerHTML = eventHistory.map(e => `<div class="log-entry">${e}</div>`).join("");
+        document.getElementById("timeline").value = current + 1;
+        document.getElementById("current-step").innerText = `Step ${current + 1}`;
+
+        // Thrashing Detection (A->B, B->A)
+        let isThrashing = false;
+        if (current >= 2) {
+            const prev = frames[current - 1];
+            if (frame.to === prev.from && frame.from === prev.to) isThrashing = true;
         }
+        document.getElementById("thrash-warning").style.display = isThrashing ? "block" : "none";
+        document.getElementById("agent-status").innerText = isThrashing ? "Stuck in Loop" : "Exploring...";
 
-        stepForward();
-
-    }, 80);
+        current++;
+    }
+    
+    // Focus camera on the active node for a cinematic feel
+    if(current > 0) {
+        network.focus(frames[current-1].to, { scale: 1.2, animation: { duration: 150, easingFunction: "easeInOutQuad" }});
+    }
 }
-
-function pause() {
-
-    clearInterval(timer);
-    timer = null;
-}
-
 </script>
-
 </body>
 </html>

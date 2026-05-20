@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 
 
@@ -44,6 +44,17 @@ class Symbol:
 
 
 @dataclass(frozen=True)
+class SymbolDefinition:
+    """A source-level symbol definition owned by a module or file."""
+
+    name: str
+    kind: SymbolKind
+    file_path: str
+    line: int | None = None
+    module: str = ""
+
+
+@dataclass(frozen=True)
 class SymbolReference:
     """A symbol-like name referenced from a source file."""
 
@@ -51,3 +62,15 @@ class SymbolReference:
     file_path: str
     line: int | None = None
     scope: str | None = None
+    resolved_symbol: str | None = None
+
+
+@dataclass(frozen=True)
+class CallSite:
+    """A call expression and its best-known semantic target."""
+
+    caller: str
+    callee: str
+    file_path: str
+    line: int | None = None
+    resolved_symbol: str | None = None

@@ -28,7 +28,14 @@ class Settings(BaseModel):
     app_name: str = "LocalityLens"
     version: str = "0.1.0"
     log_level: str = "INFO"
-    thresholds: ThresholdSettings = Field(default_factory=ThresholdSettings)
+    thresholds: ThresholdSettings = Field(
+        default=ThresholdSettings(
+            locality_window=10,
+            thrash_repeat_limit=3,
+            churn_ratio_limit=0.4,
+            waste_gap_seconds=30.0,
+        )
+    )
 
     @classmethod
     def load(cls, config_path: Path | None = None) -> "Settings":

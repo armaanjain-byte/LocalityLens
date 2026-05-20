@@ -8,7 +8,10 @@ import pytest
 
 from localitylens.core.semantic_map import SemanticMap
 from localitylens.core.trace import EventKind, Trace, TraceEvent, TraceFormat
+from localitylens.semantic.context_window import ContextWindowSimulator
 from localitylens.semantic.mapper import SemanticMapper
+from localitylens.semantic.neighborhoods import SemanticNeighborhoods
+from localitylens.semantic.repository_indexer import RepositoryIndexer
 
 _T0 = datetime(2026, 5, 16, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -119,7 +122,9 @@ class TestSemanticMapper:
         smap = mapper.build(trace)
 
         assert "helper" in smap.symbol_references
-        assert "helper" in smap.call_graph["pkg.a.run"]
+        assert "pkg.b.helper" in smap.call_graph["pkg.a.run"]
+        assert smap.calls_by_symbol["pkg.a.run"][0].resolved_symbol == "pkg.b.helper"
+        assert smap.owners_by_reference[smap.symbol_references["helper"][0]] == "pkg.b.helper"
         assert "pkg/b.py" in smap.semantic_neighbors("pkg/a.py")
 
     def test_repository_first_indexing_includes_untouched_files(self, tmp_path):
@@ -199,9 +204,46 @@ class TestSemanticMapper:
         assert "pkg/broken.py" in smap.files
 
     def test_module_index_prefers_longer_path_on_basename_collision(self):
-        index = SemanticMapper._module_index({"src/utils.py", "tests/helpers/utils.py"})
+        index = RepositoryIndexer._module_index({"src/utils.py", "tests/helpers/utils.py"})
 
         assert index["utils"] == "tests/helpers/utils.py"
+
+    def test_repository_indexer_crawls_supported_source_extensions(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        for name in ("a.py", "b.ts", "c.tsx", "d.js", "e.rs", "f.go"):
+            (repo / name).write_text("", encoding="utf-8")
+
+        files = RepositoryIndexer().crawl(repo)
+
+        assert files == {"a.py", "b.ts", "c.tsx", "d.js", "e.rs", "f.go"}
+
+    def test_semantic_neighborhood_distance_uses_call_graph(self, tmp_path):
+        mapper = SemanticMapper()
+        package = tmp_path / "pkg"
+        package.mkdir()
+        (package / "a.py").write_text(
+            "from pkg.b import helper\n\n"
+            "def run():\n"
+            "    return helper()\n",
+            encoding="utf-8",
+        )
+        (package / "b.py").write_text("def helper():\n    return 1\n", encoding="utf-8")
+        trace = _make_trace(["pkg/a.py", "pkg/b.py"])
+        trace.source = str(tmp_path / "trace.json")
+        smap = mapper.build(trace)
+
+        neighborhoods = SemanticNeighborhoods(smap)
+
+        assert neighborhoods.symbol_distance("pkg.a.run", "pkg.b.helper") == 1
+        assert neighborhoods.file_distance("pkg/a.py", "pkg/b.py") == 1
+
+    def test_context_window_simulates_eviction_and_reload(self):
+        state = ContextWindowSimulator(capacity=2).simulate(["a", "b", "c", "a"])
+
+        assert state.eviction_count == 2
+        assert state.reload_count == 1
+        assert list(state.active) == ["c", "a"]
 
 
 class TestSemanticMapRegisterTouch:
