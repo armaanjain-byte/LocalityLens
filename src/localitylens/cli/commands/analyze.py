@@ -560,7 +560,7 @@ def analyze_file(
 
             dashboard_file = (
                 output_dir
-                / "localitylens_dashboard.html"
+                / "index.html"
             )
 
             dashboard_file.write_text(
