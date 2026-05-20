@@ -560,7 +560,7 @@ def analyze_file(
 
             dashboard_file = (
                 output_dir
-                / "index.html"
+                / "docs/index.html"
             )
 
             dashboard_file.write_text(
