@@ -402,6 +402,17 @@ def analyze_file(
 ) -> None:
     """Analyze a single trace file and display the report."""
     try:
+        if not trace_path.exists():
+            fallback_paths = [
+        Path("data/processed") / trace_path.name,
+        Path("data") / trace_path.name,
+        Path.cwd() / trace_path.name,
+    ]
+
+        for fallback in fallback_paths:
+            if fallback.exists():
+                trace_path = fallback
+                break
         validate_file_exists(trace_path)
 
         parser = next((p for p in PARSERS if p.can_parse(trace_path)), None)
