@@ -31,7 +31,7 @@ class SemanticMapper:
         if not trace.events and repo_path is None:
             return SemanticMap(trace_id=trace.trace_id)
 
-        repository_files = indexer.crawl(source_root)
+        repository_files = set(indexer.crawl(source_root))
         smap = SemanticMap(trace_id=trace.trace_id)
 
         previous: str | None = None

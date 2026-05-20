@@ -393,92 +393,231 @@ def _replay_payload(trace: Trace) -> list[dict[str, Any]]:
 
 @app.command("file")
 def analyze_file(
-    trace_path: Path = typer.Argument(..., help="Path to the agent trace file"),
-    db_path: Path = typer.Option(Path("localitylens.db"), help="Path to SQLite database"),
-    repo_path: Path | None = typer.Option(None, help="Repository root for semantic indexing"),
-    output_dir: Path = typer.Option(Path("."), help="Directory for generated replay/graph files"),
-    no_graph: bool = typer.Option(False, "--no-graph", help="Skip transition graph export"),
-    no_replay: bool = typer.Option(False, "--no-replay", help="Skip replay frame export"),
+    trace_path: Path = typer.Argument(
+        ...,
+        help="Path to the agent trace file",
+    ),
+    db_path: Path = typer.Option(
+        Path("localitylens.db"),
+        "--db-path",
+        help="Path to SQLite database",
+    ),
+    repo_path: Path | None = typer.Option(
+        None,
+        "--repo-path",
+        help="Repository root for semantic indexing",
+    ),
+    output_dir: Path = typer.Option(
+        Path("."),
+        "--output-dir",
+        help="Directory for generated replay/graph files",
+    ),
+    no_graph: bool = typer.Option(
+        False,
+        "--no-graph",
+        help="Skip transition graph export",
+    ),
+    no_replay: bool = typer.Option(
+        False,
+        "--no-replay",
+        help="Skip replay frame export",
+    ),
 ) -> None:
     """Analyze a single trace file and display the report."""
+
     try:
         if not trace_path.exists():
             fallback_paths = [
-        Path("data/processed") / trace_path.name,
-        Path("data") / trace_path.name,
-        Path.cwd() / trace_path.name,
-    ]
+                Path("data/processed") / trace_path.name,
+                Path("data") / trace_path.name,
+                Path.cwd() / trace_path.name,
+            ]
 
-        for fallback in fallback_paths:
-            if fallback.exists():
-                trace_path = fallback
-                break
+            for fallback in fallback_paths:
+                if fallback.exists():
+                    trace_path = fallback
+                    break
+
         validate_file_exists(trace_path)
 
-        parser = next((p for p in PARSERS if p.can_parse(trace_path)), None)
-        if not parser:
-            raise UnsupportedFormatError(f"No parser found for file: {trace_path.name}")
+        parser = next(
+            (p for p in PARSERS if p.can_parse(trace_path)),
+            None,
+        )
 
-        console.print(f"[bold blue]Parsing[/bold blue] {trace_path.name} using {parser.format.value}...")
+        if not parser:
+            raise UnsupportedFormatError(
+                f"No parser found for file: {trace_path.name}"
+            )
+
+        console.print(
+            f"[bold blue]Parsing[/bold blue] "
+            f"{trace_path.name} using {parser.format.value}..."
+        )
+
         trace = parser.parse(trace_path)
-        smap = build_semantic_map(trace, repo_path=repo_path)
-        
-        # 1. Core Metrics
+
+        if not isinstance(db_path, Path):
+            db_path = Path("localitylens.db")
+
+        if (
+            repo_path is not None
+            and not isinstance(repo_path, Path)
+        ):
+            repo_path = None
+
+        if not isinstance(output_dir, Path):
+            output_dir = Path(".")
+
+        smap = build_semantic_map(
+            trace,
+            repo_path=repo_path,
+        )
+
+        # Core Metrics
         report = analyze_trace(trace, smap)
+
         ReportStore(db_path).save(report)
-        
-        capture_console = Console(record=True, force_terminal=False)
-        rendered_report = TextReportVisualizer().render(report)
+
+        capture_console = Console(
+            record=True,
+            force_terminal=False,
+        )
+
+        rendered_report = (
+            TextReportVisualizer().render(report)
+        )
+
         capture_console.print(rendered_report)
-        
-        report_text = capture_console.export_text() 
+
+        report_text = capture_console.export_text()
+
         report_text = _strip_ansi(report_text)
-        
+
         console.print(rendered_report)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 2. Browser payloads
+
+        output_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        # Browser payloads
         ui_trace = _focused_trace(trace)
+
         metrics_data = _metric_payload(report)
+
         metrics_data["report_text"] = report_text
+
         graph_data = _graph_payload(ui_trace)
+
         replay_data = _replay_payload(ui_trace)
 
-        # 3. Standalone transition graph
+        # Standalone transition graph
         if not no_graph:
-            graph_path = TransitionGraphVisualizer().render(ui_trace, output_dir / "transition_graph.html")
-            console.print(f"[bold green]Transition graph saved:[/bold green] {graph_path}")
+            graph_path = (
+                TransitionGraphVisualizer().render(
+                    ui_trace,
+                    output_dir / "transition_graph.html",
+                )
+            )
 
-        # 4. Inject safe JSON into the dashboard
+            console.print(
+                f"[bold green]"
+                f"Transition graph saved:"
+                f"[/bold green] "
+                f"{graph_path}"
+            )
+
+        # Dashboard generation
         template_path = (
-            Path(__file__).resolve().parents[2]
+            Path(__file__)
+            .resolve()
+            .parents[2]
             / "visualization"
             / "html_templates"
             / "dashboard_template.html"
         )
+
         if template_path.exists():
-            html_content = template_path.read_text(encoding="utf-8")
-            html_content = html_content.replace("{{ METRICS_DATA }}", _json_for_script(metrics_data))
-            html_content = html_content.replace("{{ GRAPH_DATA }}", _json_for_script(graph_data))
-            html_content = html_content.replace("{{ REPLAY_JSON_DATA }}", _json_for_script(replay_data))
+            html_content = template_path.read_text(
+                encoding="utf-8"
+            )
 
-            dashboard_file = output_dir / "localitylens_dashboard.html"
-            dashboard_file.write_text(html_content, encoding="utf-8")
+            html_content = html_content.replace(
+                "{{ METRICS_DATA }}",
+                _json_for_script(metrics_data),
+            )
 
-            console.print("\n[bold magenta]Interactive Dashboard generated successfully![/bold magenta]")
-            absolute_path = f"file://{os.path.abspath(dashboard_file)}"
+            html_content = html_content.replace(
+                "{{ GRAPH_DATA }}",
+                _json_for_script(graph_data),
+            )
+
+            html_content = html_content.replace(
+                "{{ REPLAY_JSON_DATA }}",
+                _json_for_script(replay_data),
+            )
+
+            dashboard_file = (
+                output_dir
+                / "localitylens_dashboard.html"
+            )
+
+            dashboard_file.write_text(
+                html_content,
+                encoding="utf-8",
+            )
+
+            console.print(
+                "\n[bold magenta]"
+                "Interactive Dashboard generated successfully!"
+                "[/bold magenta]"
+            )
+
+            absolute_path = (
+                f"file://"
+                f"{os.path.abspath(dashboard_file)}"
+            )
+
             webbrowser.open(absolute_path)
-        else:
-            console.print(f"[bold yellow]Warning: Template not found at {template_path}.[/bold yellow]")
 
+        else:
+            console.print(
+                f"[bold yellow]"
+                f"Warning: Template not found at "
+                f"{template_path}."
+                f"[/bold yellow]"
+            )
+
+        # Replay export
         if not no_replay:
-            replay_path = ReplayExporter().export(ui_trace, output_dir / "replay_frames.json")
-            console.print(f"[bold cyan]Replay frames exported:[/bold cyan] {replay_path}")
+            replay_path = ReplayExporter().export(
+                ui_trace,
+                output_dir / "replay_frames.json",
+            )
+
+            console.print(
+                f"[bold cyan]"
+                f"Replay frames exported:"
+                f"[/bold cyan] "
+                f"{replay_path}"
+            )
 
     except LocalityLensError as e:
-        console.print(f"[bold red]Error:[/bold red] {e}")
+        console.print(
+            f"[bold red]Error:[/bold red] {e}"
+        )
+
         raise typer.Exit(code=1)
+
     except Exception as e:
-        log.exception("Unexpected failure during analysis")
-        console.print(f"[bold red]Critical Error:[/bold red] {e}")
+        log.exception(
+            "Unexpected failure during analysis"
+        )
+
+        console.print(
+            f"[bold red]Critical Error:[/bold red] "
+            f"{e}"
+        )
+
         raise typer.Exit(code=1)

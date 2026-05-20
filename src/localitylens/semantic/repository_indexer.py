@@ -17,10 +17,27 @@ log = get_logger(__name__)
 
 SOURCE_EXTENSIONS = frozenset({".py", ".ts", ".tsx", ".js", ".rs", ".go"})
 IGNORED_DIRS = frozenset({".git", ".venv", "__pycache__", "node_modules", ".semantic_cache"})
-
-
+   
 class RepositoryIndexer:
     """Build a semantic graph before trace projection."""
+    
+    SUPPORTED_EXTENSIONS = {
+    ".py",
+    ".js",
+    ".ts",
+    ".tsx",
+    ".jsx",
+    ".java",
+    ".cpp",
+    ".c",
+    ".h",
+    ".hpp",
+    ".go",
+    ".rs",
+    }
+    def __init__(self) -> None:
+        self.supported_extensions = self.SUPPORTED_EXTENSIONS
+ 
 
     def index_repository(self, repo_path: Path, trace_id: str = "repository") -> SemanticMap:
         """Crawl and index a repository into a SemanticMap."""
@@ -60,22 +77,23 @@ class RepositoryIndexer:
                 if target and target != semantics.path:
                     smap.add_import(semantics.path, target)
 
-    def crawl(self, repo_path: Path) -> set[str]:
-        """Return source files supported by the repository indexer."""
-        if not repo_path.exists() or not repo_path.is_dir():
-            return set()
+    def crawl(self, repo_path: Path) -> list[Path]:
+        """Crawl repository and collect source files."""
 
-        files: set[str] = set()
-        for path in repo_path.rglob("*"):
-            if not path.is_file() or path.suffix not in SOURCE_EXTENSIONS:
-                continue
-            if any(part in IGNORED_DIRS for part in path.parts):
-                continue
-            try:
-                files.add(path.relative_to(repo_path).as_posix())
-            except ValueError:
-                continue
-        return files
+        repo_path = Path(repo_path)
+
+        if not repo_path.exists():
+            raise FileNotFoundError(f"Repository path does not exist: {repo_path}")
+
+        if not repo_path.is_dir():
+            raise NotADirectoryError(f"Repository path is not a directory: {repo_path}")
+
+        discovered_files: list[Path] = []
+
+        for ext in self.supported_extensions:
+            discovered_files.extend(repo_path.rglob(f"*{ext}"))
+
+        return discovered_files
 
     @staticmethod
     def _parse_python(logical_path: str, source_root: Path) -> PythonModuleSemantics | None:
