@@ -5,7 +5,6 @@ from __future__ import annotations
 from localitylens.core.metrics import (
     AnalysisReport,
     MetricNames,
-    Severity,
 )
 
 

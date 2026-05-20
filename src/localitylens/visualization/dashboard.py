@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from pathlib import Path
 
-from localitylens.core.metrics import AnalysisReport, Severity
+from localitylens.core.metrics import AnalysisReport
 from localitylens.reporting.findings import FindingsGenerator
 from localitylens.reporting.session_story import SessionStoryGenerator
 
