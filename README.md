@@ -23,6 +23,7 @@ Live dashboard:
 [https://armaanjain-byte.github.io/localitylens/](https://armaanjain-byte.github.io/localitylens/)
 
 ---
+<img width="1919" height="1068" alt="image" src="https://github.com/user-attachments/assets/7e77c90a-de92-408f-a484-ec8695d640c9" />
 
 ## Overview
 
