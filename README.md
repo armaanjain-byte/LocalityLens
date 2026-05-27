@@ -11,266 +11,115 @@
 </p>
 
 <p align="center">
-  LocalityLens analyzes coding-agent execution traces to detect semantic thrashing, retrieval churn, context instability, and repository-scale locality failures.
+  LocalityLens analyzes coding-agent execution traces to surface semantic thrashing, retrieval churn, context instability, and repository-scale locality failures.
 </p>
 
----
-
-## Live Demo
-
-Live dashboard:
-
-[https://armaanjain-byte.github.io/localitylens/](https://armaanjain-byte.github.io/localitylens/)
-
----
-<img width="1919" height="1068" alt="image" src="https://github.com/user-attachments/assets/7e77c90a-de92-408f-a484-ec8695d640c9" />
-
-## Overview
-
-Modern coding agents repeatedly reload files, lose semantic locality, and waste context windows while navigating large repositories.
-
-LocalityLens provides visibility into those failures.
-
-The system ingests execution traces from coding agents such as Claude Code, Cursor, and OpenHands, maps repository structure using AST analysis, and computes locality-oriented observability metrics.
-
-The goal is not code generation.
-
-The goal is understanding how coding agents behave across repository-scale workflows.
+**Live Dashboard →** [armaanjain-byte.github.io/localitylens](https://armaanjain-byte.github.io/localitylens/)
 
 ---
 
-## Core Capabilities
-
-### Trace Analysis
-
-Analyze coding-agent execution traces:
-
-* Claude Code traces
-* Cursor traces
-* OpenHands traces
-* Generic JSON traces
-
-### Semantic Mapping
-
-Repository-aware analysis using:
-
-* Tree-sitter AST parsing
-* symbol extraction
-* import graph analysis
-* semantic dependency tracking
-
-### Locality Metrics
-
-Compute:
-
-| Metric | Description                                                                  |
-| ------ | ---------------------------------------------------------------------------- |
-| LHR    | Locality Hit Rate — percentage of required symbols already active in context |
-| STR    | Semantic Thrashing Rate — reload → evict → reload frequency                  |
-| RRR    | Retrieval Redundancy Ratio — repeated retrieval volume vs total retrieval    |
-| CSS    | Context Stability Score — stability of semantic context over time            |
-
-### Interactive Visualization
-
-The dashboard includes:
-
-* metrics overview
-* transition graph
-* replay viewer
-* anomaly tracking
-* repository interaction flow
-* retrieval churn visualization
-* hotspot analysis
+<!-- Dashboard screenshot placeholder -->
+![LocalityLens Dashboard](docs/dashboard.png)
 
 ---
 
-## Why LocalityLens Exists
+## The Problem
 
-Most tooling for coding agents focuses on:
+Most coding agent tooling answers one question: *did the agent complete the task?*
 
-* prompting
-* retrieval
-* generation quality
-* benchmark scoring
+Nobody is asking the adjacent question: *how inefficiently did the agent navigate the repository to get there?*
 
-Very little tooling exists for understanding:
+Agents repeatedly reload files, lose semantic context, re-retrieve symbols they already held, and fragment their working context across long-horizon tasks. This behavior is observable. It is not being observed.
 
-* semantic locality collapse
-* repository navigation inefficiency
-* repeated retrieval behavior
-* context fragmentation
-* long-horizon execution instability
+LocalityLens fills that gap.
 
-LocalityLens focuses specifically on temporal semantic locality analysis for coding agents.
+---
+
+## What It Does
+
+LocalityLens ingests execution traces from Claude Code, Cursor, or OpenHands, maps repository structure using AST analysis, and computes locality-oriented observability metrics.
+
+The goal is behavioral analysis — not generation quality, not task scoring.
+
+---
+
+## Core Metrics
+
+| Metric | Name | What It Measures |
+|---|---|---|
+| **LHR** | Locality Hit Rate | Fraction of required symbols already active in context at time of access |
+| **STR** | Semantic Thrashing Rate | Frequency of reload → evict → reload cycles on the same symbol |
+| **RRR** | Retrieval Redundancy Ratio | Repeated retrieval volume as a fraction of total retrievals |
+| **CSS** | Context Stability Score | Semantic stability of the agent's active context over time |
+
+High STR + low LHR = the agent is burning context budget revisiting code it already read.
 
 ---
 
 ## System Architecture
 
-```text
+```
+Execution Trace (Claude Code / Cursor / OpenHands)
+    ↓
 Trace Parser
     ↓
-AST / Semantic Mapper
+AST / Semantic Mapper  ←── Tree-sitter, symbol extraction, import graph
     ↓
-Context Tracker
+Context Tracker        ←── tracks active symbol set per step
     ↓
-Thrashing Engine
+Thrashing Engine       ←── detects reload/evict/reload cycles
     ↓
-Metrics Engine
+Metrics Engine         ←── computes LHR, STR, RRR, CSS
     ↓
-Visualization Layer
+Visualization Layer    ←── dashboard, transition graph, replay viewer
 ```
 
 ---
 
-## Dashboard
+## Dashboard Features
 
-The GitHub Pages deployment hosts the generated analysis dashboard directly.
+<!-- Transition graph placeholder -->
+![Transition Graph](docs/transition_graph.png)
 
-Features currently integrated into the dashboard:
-
-* replay visualization
-* transition graph
-* anomaly explorer
-* semantic churn analysis
-* trace playback
-* metric summaries
-* repository interaction tracking
+- **Metrics overview** — LHR, STR, RRR, CSS with trend lines
+- **Transition graph** — file-level navigation patterns across the execution
+- **Replay viewer** — step-by-step trace playback with semantic state
+- **Anomaly explorer** — flagged high-thrashing intervals
+- **Retrieval churn visualization** — redundant access heatmap
+- **Repository hotspot analysis** — most-revisited modules
 
 ---
 
-## Example Workflow
+## Tech Stack
 
-### Input
-
-```text
-normalized_trace.json
-repository path
-```
-
-### Run Analysis
-
-```bash
-python analyze.py normalized_trace.json
-```
-
-### Output
-
-Generated outputs include:
-
-```text
-index.html
-metrics.json
-transition graph
-replay visualization
-```
-
----
-
-## Example Use Cases
-
-### Agent Observability
-
-Understand:
-
-* why agents repeatedly reopen files
-* where context locality collapses
-* which modules cause retrieval churn
-* how repository navigation evolves over time
-
-### Benchmark Evaluation
-
-Compare coding agents on:
-
-* locality efficiency
-* retrieval redundancy
-* context stability
-* semantic reuse
-
-### Research
-
-Useful for:
-
-* AI agent observability research
-* repository-scale agent evaluation
-* context-window optimization studies
-* semantic memory analysis
-
----
-
-## Technology Stack
-
-| Layer           | Technology    |
-| --------------- | ------------- |
-| Backend         | Python        |
-| AST Parsing     | Tree-sitter   |
-| Graph Analysis  | networkx      |
-| Data Processing | pandas        |
-| Visualization   | Plotly / HTML |
-| CLI             | Typer         |
-| Storage         | JSON / SQLite |
-
----
-
-## Repository Structure
-
-```text
-localitylens/
-│
-├── analysis/
-├── cli/
-├── parser/
-├── semantic/
-├── metrics/
-├── visualization/
-├── tests/
-├── docs/
-│
-├── analyze.py
-├── README.md
-└── pyproject.toml
-```
+| Layer | Technology |
+|---|---|
+| Backend | Python 3.11+ |
+| AST Parsing | Tree-sitter |
+| Graph Analysis | NetworkX |
+| Data Processing | Pandas |
+| Visualization | Plotly / HTML |
+| CLI | Typer |
+| Storage | SQLite + JSON |
+| CI/CD | GitHub Actions |
 
 ---
 
 ## Installation
 
-### Clone Repository
-
 ```bash
 git clone https://github.com/armaanjain-byte/localitylens.git
 cd localitylens
-```
 
-### Create Environment
-
-```bash
 python -m venv venv
-```
+source venv/bin/activate      # Windows: venv\Scripts\activate
 
-### Activate Environment
-
-Windows:
-
-```bash
-venv\Scripts\activate
-```
-
-Linux / macOS:
-
-```bash
-source venv/bin/activate
-```
-
-### Install Dependencies
-
-```bash
 pip install -r requirements.txt
 ```
 
 ---
 
-## Running the Project
+## Usage
 
 ### Analyze a Trace
 
@@ -278,86 +127,87 @@ pip install -r requirements.txt
 python analyze.py normalized_trace.json
 ```
 
-### Open Dashboard
+### Output
 
-Open generated:
-
-```text
-index.html
+```
+index.html           # full interactive dashboard
+metrics.json         # raw metric values
 ```
 
-or view the live deployment:
-
-[https://armaanjain-byte.github.io/localitylens/](https://armaanjain-byte.github.io/localitylens/)
+Or view the live deployment: [armaanjain-byte.github.io/localitylens](https://armaanjain-byte.github.io/localitylens/)
 
 ---
 
-## Development Goals
+## Repository Structure
 
-### Current Focus
-
-* repository-scale observability
-* semantic locality analysis
-* retrieval churn tracking
-* coding-agent workflow analysis
-
-### Explicit Non-Goals
-
-The project intentionally avoids:
-
-* vector databases
-* LLM serving
-* autonomous agents
-* orchestration frameworks
-* prompt engineering systems
-* cloud infrastructure complexity
-
----
-
-## Performance Direction
-
-Target capabilities:
-
-* large trace processing
-* repository-scale semantic mapping
-* lightweight analysis pipeline
-* reproducible metric computation
+```
+localitylens/
+│
+├── analysis/          # trace analysis pipelines
+├── cli/               # Typer CLI
+├── parser/            # trace parsers (Claude Code, Cursor, OpenHands)
+├── semantic/          # AST mapping, symbol extraction, import graphs
+├── metrics/           # LHR, STR, RRR, CSS computation
+├── visualization/     # dashboard generation
+├── tests/             # unit + integration tests
+├── docs/              # screenshots, architecture diagrams
+│
+├── analyze.py
+├── pyproject.toml
+└── README.md
+```
 
 ---
 
-## Future Work
+## Why Not Vectors, Why Not LLMs
 
-Planned extensions:
+LocalityLens intentionally avoids:
 
-* multi-agent comparison
-* benchmark suites
-* longitudinal trace analysis
-* additional parser integrations
-* expanded semantic graph analytics
-* export pipelines
+- vector databases
+- embedding-based retrieval
+- LLM serving
+- orchestration frameworks
+
+The analysis is deterministic. Metrics are computed from trace structure and AST-derived repository graphs — not from model inference. Reproducibility matters for evaluation tooling.
 
 ---
 
-## Research Direction
+## Design Principles
 
-LocalityLens explores a broader question:
+**Reproducibility over convenience.** Analysis runs on any machine with the trace file and the repo. No cloud dependencies.
 
-> Can coding-agent behavior be analyzed through semantic locality rather than only task completion?
+**Structural over semantic.** Context tracking uses AST-derived symbol graphs, not embedding similarity. The metrics measure observable behavior, not inferred intent.
 
-The project treats repository interaction patterns as an observability problem rather than a pure generation problem.
+**Metrics over dashboards.** The visualization is output, not the product. The product is `metrics.json` — a structured, comparable artifact.
+
+---
+
+## Use Cases
+
+**Agent evaluation** — compare Claude Code vs OpenHands on locality efficiency across a shared benchmark task set.
+
+**Debugging agent loops** — diagnose why an agent is looping on a module by inspecting STR spikes in the replay viewer.
+
+**Context-window optimization research** — measure how retrieval redundancy scales with task length and repository size.
+
+---
+
+## Roadmap
+
+- [ ] Multi-agent comparison (run two agents on the same task, compare metrics)
+- [ ] SWE-bench trajectory integration
+- [ ] Benchmark suite with reproducible task definitions
+- [ ] Longitudinal trace analysis across agent versions
+- [ ] Export pipeline for metric datasets
 
 ---
 
 ## Author
 
-Armaan Jain
-
-GitHub:
-
-[https://github.com/armaanjain-byte](https://github.com/armaanjain-byte)
+**Armaan Jain** · [github.com/armaanjain-byte](https://github.com/armaanjain-byte)
 
 ---
 
 ## License
 
-MIT License
+MIT
