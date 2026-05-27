@@ -18,9 +18,9 @@
 
 ---
 
-<!-- Dashboard screenshot placeholder -->
-![LocalityLens Dashboard](<img width="1920" height="1200" alt="Screenshot 2026-05-24 141908" src="https://github.com/user-attachments/assets/3b9069a9-3411-4776-a57b-eca18be733b0" />
-)
+
+LocalityLens Dashboard
+<img width="1920" height="1200" alt="Screenshot 2026-05-24 141908" src="https://github.com/user-attachments/assets/3b9069a9-3411-4776-a57b-eca18be733b0" />
 
 ---
 
