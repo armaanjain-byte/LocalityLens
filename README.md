@@ -14,12 +14,13 @@
   LocalityLens analyzes coding-agent execution traces to surface semantic thrashing, retrieval churn, context instability, and repository-scale locality failures.
 </p>
 
-**Live Dashboard →** [armaanjain-byte.github.io/localitylens](https://armaanjain-byte.github.io/localitylens/)
+**Live Dashboard →** [armaanjain-byte.github.io/localitylens](https://armaanjain-byte.github.io/LocalityLens/)
 
 ---
 
 <!-- Dashboard screenshot placeholder -->
-![LocalityLens Dashboard](docs/dashboard.png)
+![LocalityLens Dashboard](<img width="1920" height="1200" alt="Screenshot 2026-05-24 141908" src="https://github.com/user-attachments/assets/3b9069a9-3411-4776-a57b-eca18be733b0" />
+)
 
 ---
 
