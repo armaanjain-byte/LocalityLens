@@ -25,7 +25,6 @@ LocalityLens Dashboard
 ---
 
 ## The Problem
-Adding more changes and use to the project.
 Most coding agent tooling answers one question: *did the agent complete the task?*
 
 Nobody is asking the adjacent question: *how inefficiently did the agent navigate the repository to get there?*
